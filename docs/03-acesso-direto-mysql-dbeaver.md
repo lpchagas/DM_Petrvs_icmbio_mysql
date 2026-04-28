@@ -2,6 +2,8 @@
 
 Este guia cobre a conexao no banco `petrvs_icmbio` (MySQL local) pelo DBeaver e as primeiras consultas de validacao.
 
+**Perfil:** analista ou tecnico que vai executar as consultas SQL. Se voce e gestor buscando interpretar os resultados sem SQL, consulte [08-guia-rapido-gestores.md](08-guia-rapido-gestores.md).
+
 ## 1. Pre-requisito
 
 O dump deve estar restaurado no MySQL local. Se ainda nao restaurou, siga [docs/02-restauracao-dump-petrvs.md](02-restauracao-dump-petrvs.md) primeiro.
@@ -20,13 +22,13 @@ Se o DBeaver pedir para baixar o driver do MySQL na primeira conexao, aceite. E 
 2. Escolha `MySQL`.
 3. Preencha os campos:
 
-| Campo | Valor |
-|---|---|
-| Host | `localhost` |
-| Port | `3306` |
-| Database | `petrvs_icmbio` |
-| User | `root` |
-| Password | sua senha do MySQL local |
+   | Campo | Valor |
+   | --- | --- |
+   | Host | `localhost` |
+   | Port | `3306` |
+   | Database | `petrvs_icmbio` |
+   | User | `root` |
+   | Password | sua senha do MySQL local |
 
 4. Clique em `Test Connection`.
 5. Se aparecer sucesso, clique em `Finish`.

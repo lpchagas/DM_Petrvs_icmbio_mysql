@@ -37,6 +37,8 @@ docs/
   04-configuracao-dbeaver.md        Configuração detalhada do DBeaver
   05-contexto-ocde-pgd.md          Contexto estratégico dos indicadores OCDE/PGD
   06-indicadores-ocde-mysql.md     Documentação das queries + explicação de cada indicador
+  07-estrutura-banco-dados.md      [NOVO] Arquitetura completa do banco PETRVS (técnico)
+  08-guia-rapido-gestores.md       [EM PROGRESSO] Início rápido para usuários de negócio
 
 .gitignore
 .vscode/settings.json
@@ -158,3 +160,71 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 - As queries usam CTEs encadeadas — execute a query completa, não partes isoladas.
 - `progresso_esperado = 0` pode causar divisão por zero nos indicadores I03 e I04 — as queries já tratam com `NULLIF`.
 - Para novos indicadores: seguir o padrão do bloco `parametros` e o estilo de nomeação das colunas já adotado (snake_case, sufixos `_perc`, `_total`, `_media`).
+
+---
+
+## 11. Estado do Projeto — Documentação (Atualização 28.04.2026)
+
+### ✅ Concluído (Fase 1 - Exploração)
+
+- **28.04.2026**: Exploração completa do banco de dados PETRVS
+  - Conectado e validado: MySQL 8.0 local com dump restaurado (4 GB+)
+  - Mapeadas 130+ tabelas do banco
+  - Identificados relacionamentos (Foreign Keys) entre todas as tabelas
+  - Documentada a arquitetura em 4 camadas:
+    1. Camada de Referência (usuários, unidades, tipos)
+    2. Camada de Planejamento (planos de entregas e trabalho)
+    3. Camada de Execução (atividades, ocorrências, afastamentos)
+    4. Camada de Avaliação & Resultado (avaliações, progressos, consolidações)
+  - Padrões de design catalogados (soft-delete, UUID, ENUM, JSON, decimais)
+  - **Novo doc criado**: `docs/07-estrutura-banco-dados.md` — Referência técnica completa
+
+### ✅ Concluído (Fase 2 e 3 - Simplificação para Usuários de Negócio) — 28.04.2026
+
+#### Fase 2 - Atualizar Referências
+
+- [x] Atualizar `README.md` com referência ao doc 07 (técnico) e doc 08 (gestores)
+- [x] Separar "início rápido" em dois caminhos: gestores (sem SQL) e analistas (setup técnico)
+
+#### Fase 3 - Simplificar Documentação
+
+- [x] Criar `docs/08-guia-rapido-gestores.md` — Guia completo sem SQL: todos os indicadores em linguagem de negócio, analogias ICMBio, tabela de interpretação, FAQ
+- [x] Reescrever `01-visao-geral.md` — analogia PE/PT (contrato da unidade vs. agenda do servidor), mapa de tabelas, link para guia de gestores
+- [x] Melhorar `02-restauracao-dump-petrvs.md` — resumo de etapas com tempo estimado, checklist final, seção de erros comuns expandida
+- [x] Ajustar `03-acesso-direto-mysql-dbeaver.md` — link para guia de gestores, correção de formatação markdown
+- [x] Analogias ICMBio incorporadas em `01-visao-geral.md` e `08-guia-rapido-gestores.md`
+- [ ] Revisar seções técnicas de `06-indicadores-ocde-mysql.md` — doc já tem explicações detalhadas; pendente apenas verificar se há gaps de linguagem de negócio para usuários avançados
+
+### ✅ Concluído (Fase 4 - Indicadores Completos e Correções de Lint) — 28.04.2026
+
+- [x] Reescrever `docs/05-contexto-ocde-pgd.md` — todos os 12 indicadores com fórmulas, contexto, tabelas e status
+- [x] Atualizar `docs/06-indicadores-ocde-mysql.md` — inserir I01 com queries de mapeamento e variante por unidade; inserir I09–I12 com queries de validação e consultas completas; corrigir MD031 (8 blocos de código sem linha em branco) e MD024 (15 headings duplicados)
+
+### 📋 Próximas Tarefas (Futuro)
+
+- [ ] Validar campo `tipos_modalidades.nome` no banco e confirmar I01 com dados reais
+- [ ] Validar campo numérico de `tipos_avaliacoes_notas` (pode ser `nota`, `valor` ou `pontuacao`) e confirmar I09–I12
+- [ ] Criar exemplos visuais (diagramas, screenshots do DBeaver)
+- [ ] Validar feriados móveis (Sexta da Paixão, Corpus Christi) — atualizar queries I07 e I08
+
+---
+
+## 12. Instruções para Continuar em Novo Chat
+
+**Para retomar a tarefa de simplificação da documentação:**
+
+1. Abrir este arquivo (`CLAUDE.md`)
+2. Ir para a seção "Estado do Projeto — Documentação"
+3. Continuar a partir de **Fase 2 — Atualizar Referências**
+4. Aplicar sempre as **Medidas de Qualidade**:
+   - (i) Dividir em subtarefas menores
+   - (ii) Explicar passos antes de executar
+   - (iii) Justificar decisões
+   - (iv) Gerar múltiplas opções e escolher a melhor
+
+**Referência rápida do banco:**
+- Banco: `petrvs_icmbio` (MySQL 8.0 local)
+- Credenciais: user=`root`, password=`Bfz1614A#` (não commitar!)
+- Tabelas críticas: `planos_entregas_entregas`, `planos_trabalhos_entregas`, `planos_trabalhos`, `planos_entregas`, `unidades`, `usuarios`
+- Dump: `C:\_dump\D.PGD.MGI.001.DUMP.20260226ICMBIO.sql` (não versionar)
+- Soft-delete: usar `deleted_at IS NULL` em queries

@@ -1,16 +1,32 @@
-# Indicadores OCDE do PGD no ICMBio - Frame MySQL (origem)
+# Indicadores OCDE do PGD no ICMBio — Frame MySQL (origem)
 
-Este documento adapta as consultas para o uso direto da base original PETRVS em MySQL, sem datamart.
+Este documento contem as consultas SQL para todos os 12 indicadores do *Performance Toolkit* OCDE/PGD, adaptadas para execucao direta na base original PETRVS em MySQL, sem datamart.
 
-Escopo desta versao:
+Para o contexto estrategico, formulas e status de cada indicador, consulte [05-contexto-ocde-pgd.md](05-contexto-ocde-pgd.md).
 
-- Indicador 2: Taxa de cumprimento das entregas
-- Indicador 3: Taxa de cumprimento de metas por entrega
-- Indicador 4: Indice de atingimento de metas
-- Indicador 5: Distribuicao das entregas entre os servidores
-- Indicador 6: Grau de responsabilidade pelas entregas
-- Indicador 7: Horas por entrega - planejadas
-- Indicador 8: Proporcao de horas por entrega - planejadas
+Eixo 1 — Trabalho Remoto
+
+- I01: Proporcao de servidores por regime de trabalho
+
+Eixo 2 — Execucao
+
+- I02: Taxa de cumprimento das entregas
+- I03: Taxa de cumprimento de metas por entrega
+- I04: Indice de atingimento de metas
+
+Eixo 3 — Carga de Trabalho
+
+- I05: Distribuicao das entregas entre os servidores
+- I06: Grau de responsabilidade pelas entregas
+- I07: Horas por entrega — planejadas
+- I08: Proporcao de horas por entrega — planejadas
+
+Eixo 4 — Desempenho e Avaliacao (requer validacao de campos — ver secao de mapeamento antes de executar)
+
+- I09: Media da avaliacao do Plano de Trabalho
+- I10: Percentual de avaliacoes inadequadas (nota 2)
+- I11: Percentual de avaliacoes excepcionais (nota 5)
+- I12: Coerencia entre avaliacao do PT e do PE
 
 ## 1. Regras gerais de uso
 
@@ -51,9 +67,140 @@ Observacao de nomenclatura:
 - se `descricao` estiver vazio, usar `descricao_entrega`
 - para os Indicadores 2 e 3, a mesma regra de nomenclatura deve ser mantida
 
+---
+
+## Indicador I01 — Proporcao de servidores por regime de trabalho (MySQL)
+
+### O que esse indicador responde (I01)
+
+A pergunta central e: qual e a distribuicao da forca de trabalho do ICMBio entre os regimes presencial, hibrido e teletrabalho?
+
+E o ponto de partida do *Performance Toolkit* da OCDE porque o regime molda como cada servidor estrutura seu Plano de Trabalho e, por consequencia, afeta todos os indicadores de execucao (Eixo 2) e carga (Eixo 3). Uma unidade majoritariamente em teletrabalho tem dinamica de distribuicao de entregas diferente de uma unidade presencial.
+
+**Tabela base:** `planos_trabalhos` (campo `tipo_modalidade_id`) → `tipos_modalidades`
+
+### Mapeamento I01: confirmar regimes no banco (executar primeiro)
+
+```sql
+-- Regimes cadastrados em tipos_modalidades
+select id, nome, descricao
+from tipos_modalidades
+order by nome;
+
+-- Preenchimento do campo tipo_modalidade_id nos planos de trabalho
+select
+    count(*) as total_planos,
+    sum(case when tipo_modalidade_id is null then 1 else 0 end) as sem_modalidade,
+    sum(case when tipo_modalidade_id is not null then 1 else 0 end) as com_modalidade
+from planos_trabalhos
+where deleted_at is null;
+```
+
+### I01 — Consulta: proporcao geral por regime
+
+```sql
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0 as incluir_excluidos
+),
+servidores_no_periodo as (
+    select distinct
+        pt.usuario_id,
+        coalesce(tm.nome, 'N.I.') as modalidade
+    from planos_trabalhos pt
+    left join tipos_modalidades tm
+        on tm.id = pt.tipo_modalidade_id
+    cross join parametros p
+    where date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim) >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+      and pt.usuario_id is not null
+),
+contagem_por_regime as (
+    select
+        modalidade,
+        count(distinct usuario_id) as total_servidores
+    from servidores_no_periodo
+    group by modalidade
+)
+select
+    modalidade,
+    total_servidores,
+    round(
+        total_servidores * 100.0 / nullif(sum(total_servidores) over (), 0),
+        2
+    ) as proporcao_perc
+from contagem_por_regime
+order by total_servidores desc;
+```
+
+### I01 — Consulta variante: proporcao por regime dentro de cada unidade
+
+```sql
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0 as incluir_excluidos
+),
+servidores_por_unidade as (
+    select distinct
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        coalesce(un.nome, 'N.I.') as unidade_nome,
+        pt.usuario_id,
+        coalesce(tm.nome, 'N.I.') as modalidade
+    from planos_trabalhos pt
+    left join tipos_modalidades tm
+        on tm.id = pt.tipo_modalidade_id
+    left join unidades un
+        on un.id = pt.unidade_id
+    cross join parametros p
+    where date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim) >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+      and pt.usuario_id is not null
+),
+contagem as (
+    select
+        unidade_sigla,
+        min(unidade_nome) as unidade_nome,
+        modalidade,
+        count(distinct usuario_id) as total_servidores
+    from servidores_por_unidade
+    group by unidade_sigla, modalidade
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    modalidade,
+    total_servidores,
+    round(
+        total_servidores * 100.0
+            / nullif(sum(total_servidores) over (partition by unidade_sigla), 0),
+        2
+    ) as proporcao_na_unidade_perc
+from contagem
+order by unidade_sigla, total_servidores desc;
+```
+
+### I01 — Como interpretar o resultado
+
+| Coluna | Significado |
+| --- | --- |
+| `modalidade` | Nome do regime conforme `tipos_modalidades.nome` |
+| `total_servidores` | Servidores distintos com plano ativo no periodo neste regime |
+| `proporcao_perc` | Percentual do total institucional de servidores com planos ativos |
+| `proporcao_na_unidade_perc` | Percentual dentro da propria unidade (variante por unidade) |
+
+**Atencao sobre dupla contagem:** se um servidor teve planos com regimes diferentes no mesmo periodo (ex: mudou de teletrabalho para hibrido), ele aparece em ambas as linhas. Isso e o comportamento correto — reflete que ele atuou nos dois regimes. Para um snapshot do regime atual, filtre apenas o plano mais recente por servidor usando `ROW_NUMBER() OVER (PARTITION BY usuario_id ORDER BY data_inicio DESC) = 1`.
+
+---
+
 ## 3. Indicador 2: Taxa de cumprimento das entregas (MySQL)
 
-### Consulta completa
+### I02 — Consulta completa
 
 ```sql
 with parametros as (
@@ -100,7 +247,7 @@ group by unidade_sigla
 order by unidade_sigla;
 ```
 
-### O que essa consulta faz no geral?
+### I02 — O que essa consulta faz?
 
 Ela calcula a **Taxa de cumprimento das entregas (Indicador 2)**, mas lendo diretamente da base MySQL do PETRVS, sem passar pelo datamart.
 
@@ -139,6 +286,7 @@ Aqui voce esta criando um "bloco de configuracao" que serve como painel de contr
 Este e o bloco mais longo e mais importante. Aqui o banco de dados busca os registros de entregas na tabela `planos_entregas_entregas` e os organiza para o calculo.
 
 **A estrutura basica:**
+
 ```sql
 from planos_entregas_entregas pee
 left join unidades u
@@ -151,6 +299,7 @@ cross join parametros p
 - `cross join parametros p`: inclui os parametros de configuracao do Passo 1 para que os filtros de data e exclusao possam ser usados dentro deste bloco.
 
 **O tratamento dos nomes de entrega:**
+
 ```sql
 nullif(trim(coalesce(pee.descricao, '')), '') as nome_entrega_base,
 nullif(trim(coalesce(pee.descricao_entrega, '')), '') as descricao_entrega,
@@ -163,6 +312,7 @@ No PETRVS MySQL, as entregas podem ter o nome em dois campos diferentes: `descri
 3. `nullif(..., '')`: se depois da limpeza o texto ficou vazio, transforma em NULL - o que facilita identificar campos realmente sem informacao.
 
 **O tratamento das metas:**
+
 ```sql
 pee.progresso_esperado as meta_planejada,
 coalesce(pee.progresso_realizado, 0) as meta_executada,
@@ -174,6 +324,7 @@ Ao contrario do datamart (que armazena os valores como texto e precisa de limpez
 - `meta_executada`: o progresso realizado, com `coalesce(..., 0)` para garantir que entregas sem preenchimento sejam tratadas como zero (em vez de NULL, que causaria problemas nas contas).
 
 **O status do registro:**
+
 ```sql
 case
     when pee.deleted_at is null then 'ATIVO'
@@ -184,6 +335,7 @@ end as status_registro
 Este bloco cria um campo legivel para indicar se a entrega ainda existe no sistema ou foi excluida logicamente. `deleted_at` e o campo que o PETRVS preenche quando alguem exclui um registro - se estiver vazio (NULL), o registro esta ativo.
 
 **Os filtros (`where`):**
+
 ```sql
 where date(pee.data_fim) between p.data_inicio and p.data_fim
   and (p.incluir_excluidos = 1 or pee.deleted_at is null)
@@ -197,7 +349,7 @@ where date(pee.data_fim) between p.data_inicio and p.data_fim
 
 ---
 
-### Passo 3: O calculo final (`SELECT` principal)
+### I02 — Passo 3: O calculo final (`SELECT` principal)
 
 ```sql
 select
@@ -244,7 +396,7 @@ select
 from planos_entregas_entregas;
 ```
 
-### O que essa consulta faz no geral?
+### Auditoria — O que essa consulta faz?
 
 Ela e um **diagnostico rapido da qualidade dos dados** na tabela `planos_entregas_entregas`. Antes de calcular indicadores, e util saber com o que voce esta lidando.
 
@@ -266,7 +418,7 @@ Ela e um **diagnostico rapido da qualidade dos dados** na tabela `planos_entrega
 
 ## 5. Indicador 3: Taxa de cumprimento de metas por entrega (MySQL)
 
-### Consulta completa
+### I03 — Consulta completa
 
 ```sql
 with parametros as (
@@ -315,7 +467,7 @@ from entregas_base
 order by unidade_sigla, id_entrega;
 ```
 
-### O que essa consulta faz no geral?
+### I03 — O que essa consulta faz?
 
 Ela calcula a **Taxa de cumprimento de metas por entrega (Indicador 3)**.
 
@@ -394,7 +546,7 @@ order by unidade_sigla, id_entrega;
 
 ## 6. Indicador 4: Indice de atingimento de metas (MySQL)
 
-### Consulta completa
+### I04 — Consulta completa
 
 ```sql
 with parametros as (
@@ -428,7 +580,7 @@ group by unidade_sigla
 order by unidade_sigla;
 ```
 
-### O que essa consulta faz no geral?
+### I04 — O que essa consulta faz?
 
 Ela calcula o **Indice de atingimento de metas (Indicador 4)**, que e um **score resumido por unidade** representando o desempenho medio de todas as suas entregas no periodo.
 
@@ -506,7 +658,7 @@ Este valor (0.75) sera usado no proximo passo para calcular a media.
 
 ---
 
-### Passo 3: O calculo final (`SELECT` principal)
+### I04 — Passo 3: O calculo final (`SELECT` principal)
 
 ```sql
 select
@@ -539,7 +691,7 @@ order by unidade_sigla;
 
 ---
 
-### Como interpretar o resultado
+### I04 — Como interpretar o resultado
 
 | score_atingimento_metas_perc | Interpretacao |
 |---|---|
@@ -572,7 +724,7 @@ No frame MySQL (base de origem), os campos `progresso_esperado` e `progresso_rea
 
 ## 7. Indicador 5: Distribuicao das entregas entre os servidores (MySQL)
 
-### Consulta completa
+### I05 — Consulta completa
 
 ```sql
 with parametros as (
@@ -655,7 +807,7 @@ Esta consulta usa uma **window function** (`avg() over (partition by ...)`), que
 
 ---
 
-### Passo 1: O bloco `parametros`
+### I05 — Passo 1: O bloco `parametros`
 
 Identico aos indicadores anteriores. Consulte a explicacao na secao 3 deste documento.
 
@@ -796,7 +948,7 @@ O `case` classifica cada servidor em relacao a media da sua unidade:
 
 ## 8. Indicador 6: Grau de responsabilidade pelas entregas (MySQL)
 
-### Consulta completa
+### I06 — Consulta completa
 
 ```sql
 with parametros as (
@@ -856,7 +1008,7 @@ group by unidade_sigla, tamanho_grupo_responsavel
 order by unidade_sigla, tamanho_grupo_responsavel;
 ```
 
-### O que essa consulta faz no geral?
+### I06 — O que essa consulta faz?
 
 Ela calcula o **Grau de responsabilidade pelas entregas (Indicador 6)**, respondendo: **"Cada entrega tende a ser responsabilidade de um servidor so, ou e um conjunto compartilhado de servidores?"**
 
@@ -882,7 +1034,7 @@ Neste exemplo, na AUDIT: 12 entregas sao individuais, 5 sao compartilhadas entre
 
 ---
 
-### Passo 1: O bloco `parametros`
+### I06 — Passo 1: O bloco `parametros`
 
 Identico aos indicadores anteriores. Consulte a explicacao na secao 3 deste documento.
 
@@ -986,7 +1138,7 @@ Aqui o banco **colapsa** os dados: em vez de uma linha por entrega, gera uma lin
 
 ---
 
-### Como interpretar o resultado
+### I06 — Como interpretar o resultado
 
 - **Muitas entregas com `1 servidor`**: alta concentracao individual — cada entrega depende de uma unica pessoa. Risco de gargalo em caso de ausencia.
 - **Muitas entregas com `4+ servidores`**: alta diluicao de responsabilidade — pode indicar entregas estrategicas ou ausencia de dono claro.
@@ -1015,7 +1167,7 @@ Por isso o PostgreSQL usa `not in (0, 6)` e o MySQL usa `not in (1, 7)`.
 
 ---
 
-### Consulta completa
+### I07 — Consulta completa
 
 ```sql
 with recursive
@@ -1293,6 +1445,7 @@ horas_planejadas_por_plano as (
 Este e o bloco mais importante. Para cada plano de trabalho, ele conta os dias uteis dentro do periodo de analise.
 
 **Como funciona o join com o calendario:**
+
 ```sql
 join calendario c
     on c.data_dia between greatest(date(pt.data_inicio), p.data_inicio)
@@ -1301,12 +1454,14 @@ join calendario c
 `greatest(inicio_plano, inicio_periodo)` pega a data mais tardia entre o inicio do plano e o inicio do periodo de analise — ou seja, o inicio real da sobreposicao. `least(fim_plano, fim_periodo)` pega a data mais cedo entre o fim do plano e o fim do periodo — o fim real da sobreposicao. Isso garante que so contamos dias dentro da intersecao entre o plano e o periodo de analise.
 
 **Como os fins de semana sao excluidos:**
+
 ```sql
 and dayofweek(c.data_dia) not in (1, 7)
 ```
 `DAYOFWEEK()` no MySQL retorna 1 para domingo e 7 para sabado. Excluindo 1 e 7, ficamos apenas com dias de segunda (2) a sexta (6).
 
 **Como os feriados sao excluidos:**
+
 ```sql
 left join feriados_nacionais fn on fn.data_feriado = c.data_dia
 ...
@@ -1376,7 +1531,7 @@ Por isso a explicacao abaixo se concentra somente no que e diferente.
 
 ---
 
-### Consulta completa
+### I08 — Consulta completa
 
 Os blocos `parametros`, `anos`, `feriados_fixos`, `feriados_moveis`, `feriados_nacionais`, `calendario`, `links_distintos`, `horas_planejadas_por_plano` e `horas_alocadas_por_entrega` sao identicos ao Indicador 7. Consulte a secao 9 para a explicacao detalhada de cada um. Abaixo esta a consulta completa para uso direto.
 
@@ -1574,6 +1729,405 @@ A entrega "EVENTOS PREVISTOS NO PDP ICMBIO REALIZADOS", que no I07 aparece em qu
 
 ---
 
-## 11. Proximos indicadores no frame MySQL
+---
 
-Os Indicadores 9, 10 e 11 envolvem avaliacoes dos planos de trabalho. No MySQL de origem, as avaliacoes ficam em uma tabela diferente das usadas ate aqui — serao mapeadas na proxima etapa.
+## Eixo 4: Mapeamento das tabelas de avaliacao (executar antes de I09-I12)
+
+Os indicadores I09 a I12 dependem das tabelas `avaliacoes`, `tipos_avaliacoes` e `tipos_avaliacoes_notas`. O conteudo exato dessas tabelas varia conforme a versao e configuracao do PETRVS. Execute as consultas abaixo **antes** de rodar qualquer indicador deste eixo para confirmar os nomes de campo e os valores de referencia.
+
+```sql
+-- 1. Tipos de avaliacao disponiveis no banco
+select id, nome, descricao
+from tipos_avaliacoes
+where deleted_at is null
+order by nome;
+
+-- 2. Escala de notas (confirmar nome do campo numerico: nota, valor, pontuacao?)
+select id, nota, descricao
+from tipos_avaliacoes_notas
+order by nota;
+
+-- 3. Volume de avaliacoes por tipo
+select
+    ta.nome as tipo_avaliacao,
+    count(*) as total,
+    sum(case when av.deleted_at is null then 1 else 0 end) as ativos
+from avaliacoes av
+join tipos_avaliacoes ta on ta.id = av.tipo_avaliacao_id
+group by ta.nome
+order by total desc;
+
+-- 4. Exemplos de avaliacoes de Plano de Trabalho (via consolidacao)
+select
+    av.id,
+    ta.nome as tipo_avaliacao,
+    tan.nota as valor_nota,
+    tan.descricao as descricao_nota,
+    av.created_at
+from avaliacoes av
+join tipos_avaliacoes ta on ta.id = av.tipo_avaliacao_id
+join tipos_avaliacoes_notas tan on tan.id = av.tipo_avaliacao_nota_id
+where av.plano_trabalho_consolidacao_id is not null
+  and av.deleted_at is null
+limit 20;
+
+-- 5. Exemplos de avaliacoes de Plano de Entregas
+select
+    av.id,
+    ta.nome as tipo_avaliacao,
+    tan.nota as valor_nota,
+    tan.descricao as descricao_nota,
+    av.created_at
+from avaliacoes av
+join tipos_avaliacoes ta on ta.id = av.tipo_avaliacao_id
+join tipos_avaliacoes_notas tan on tan.id = av.tipo_avaliacao_nota_id
+where av.plano_entrega_id is not null
+  and av.deleted_at is null
+limit 20;
+```
+
+**Campos a confirmar antes de continuar:**
+
+- `tipos_avaliacoes_notas`: verificar se o campo de valor numerico se chama `nota` (pode ser `valor`, `pontuacao` ou outro)
+- `avaliacoes`: verificar que o filtro `plano_trabalho_consolidacao_id is not null` identifica corretamente as avaliacoes de PT e `plano_entrega_id is not null` as de PE
+
+---
+
+## Indicador I09 — Media da avaliacao do Plano de Trabalho (MySQL)
+
+### O que esse indicador responde (I09)
+
+A pergunta central e: em media, qual nota as equipes estao recebendo nas avaliacoes dos seus Planos de Trabalho, por unidade?
+
+Enquanto I02-I04 medem o quanto foi entregue, o I09 mede como o trabalho foi avaliado — a qualidade percebida do desempenho. Uma unidade pode ter I02 = 100% (todas as entregas concluidas) e ainda assim ter I09 baixo se os avaliadores consideraram que o trabalho foi cumprido mas com baixa qualidade.
+
+**Tabelas base:** `avaliacoes` → `planos_trabalhos_consolidacoes` → `planos_trabalhos` → `unidades`
+
+### I09 — Consulta: media por unidade
+
+```sql
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0 as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        coalesce(un.nome, 'N.I.') as unidade_nome,
+        coalesce(us.nome, 'N.I.') as nome_servidor,
+        av.id as avaliacao_id,
+        ta.nome as tipo_avaliacao,
+        tan.nota as valor_nota  -- validar: pode ser valor, pontuacao ou outro campo
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes ta
+        on ta.id = av.tipo_avaliacao_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    left join unidades un
+        on un.id = pt.unidade_id
+    left join usuarios us
+        on us.id = pt.usuario_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and tan.nota is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(av.created_at) between p.data_inicio and p.data_fim
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    count(avaliacao_id)                                          as total_avaliacoes,
+    round(avg(valor_nota), 2)                                    as media_nota_pt,
+    min(valor_nota)                                              as nota_minima,
+    max(valor_nota)                                              as nota_maxima,
+    sum(case when valor_nota = 5 then 1 else 0 end)             as qtd_nota_5,
+    sum(case when valor_nota = 2 then 1 else 0 end)             as qtd_nota_2,
+    sum(case when valor_nota = 1 then 1 else 0 end)             as qtd_nota_1
+from avaliacoes_pt
+group by unidade_sigla, unidade_nome
+order by unidade_sigla;
+```
+
+### I09 — Variante: detalhe por servidor
+
+```sql
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0 as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        coalesce(us.nome, 'N.I.') as nome_servidor,
+        av.id as avaliacao_id,
+        ta.nome as tipo_avaliacao,
+        tan.nota as valor_nota
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes ta
+        on ta.id = av.tipo_avaliacao_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    left join unidades un
+        on un.id = pt.unidade_id
+    left join usuarios us
+        on us.id = pt.usuario_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and tan.nota is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(av.created_at) between p.data_inicio and p.data_fim
+)
+select
+    unidade_sigla,
+    nome_servidor,
+    count(avaliacao_id)        as total_avaliacoes,
+    round(avg(valor_nota), 2)  as media_nota_pt,
+    min(valor_nota)            as nota_minima,
+    max(valor_nota)            as nota_maxima
+from avaliacoes_pt
+group by unidade_sigla, nome_servidor
+order by unidade_sigla, media_nota_pt desc;
+```
+
+### I09 — Como interpretar o resultado
+
+| media_nota_pt | Interpretacao |
+| --- | --- |
+| 5.00 | Excelente — todas as avaliacoes foram excepcionais |
+| 4.00 a 4.99 | Bom desempenho geral |
+| 3.00 a 3.99 | Desempenho regular — merece acompanhamento |
+| Abaixo de 3.00 | Sinal de alerta — investigar causas |
+
+---
+
+## Indicador I10 — Percentual de avaliacoes inadequadas (nota 2) (MySQL)
+
+### O que esse indicador responde (I10)
+
+A pergunta central e: qual percentual das avaliacoes de Planos de Trabalho recebeu nota 2 (inadequada) por unidade?
+
+O I10 nao e apenas a contraface negativa do I11 — ele identifica especificamente servidores ou unidades com avaliacao formal de inadequacao, o que exige acompanhamento gerencial diferenciado (plano de melhoria, feedback estruturado).
+
+**Tabelas base:** mesmas do I09.
+
+### I10 — Consulta
+
+```sql
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0 as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        coalesce(un.nome, 'N.I.') as unidade_nome,
+        av.id as avaliacao_id,
+        tan.nota as valor_nota
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    left join unidades un
+        on un.id = pt.unidade_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and tan.nota is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(av.created_at) between p.data_inicio and p.data_fim
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    count(avaliacao_id)                                                               as total_avaliacoes,
+    sum(case when valor_nota = 2 then 1 else 0 end)                                  as qtd_nota_2,
+    round(
+        sum(case when valor_nota = 2 then 1 else 0 end) * 100.0
+            / nullif(count(avaliacao_id), 0),
+        2
+    )                                                                                 as perc_inadequadas
+from avaliacoes_pt
+group by unidade_sigla, unidade_nome
+order by perc_inadequadas desc, unidade_sigla;
+```
+
+---
+
+## Indicador I11 — Percentual de avaliacoes excepcionais (nota 5) (MySQL)
+
+### O que esse indicador responde (I11)
+
+A pergunta central e: qual percentual das avaliacoes de Planos de Trabalho recebeu nota 5 (excepcional) por unidade?
+
+Identifica unidades com alto nivel de excelencia reconhecida. Cruzado com o I04 (score de atingimento de metas), permite distinguir entre alta performance genuina e possivel avaliacao permissiva (nota 5 com metas nao cumpridas).
+
+**Tabelas base:** mesmas do I09.
+
+### I11 — Consulta
+
+```sql
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0 as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        coalesce(un.nome, 'N.I.') as unidade_nome,
+        av.id as avaliacao_id,
+        tan.nota as valor_nota
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    left join unidades un
+        on un.id = pt.unidade_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and tan.nota is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(av.created_at) between p.data_inicio and p.data_fim
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    count(avaliacao_id)                                                               as total_avaliacoes,
+    sum(case when valor_nota = 5 then 1 else 0 end)                                  as qtd_nota_5,
+    round(
+        sum(case when valor_nota = 5 then 1 else 0 end) * 100.0
+            / nullif(count(avaliacao_id), 0),
+        2
+    )                                                                                 as perc_excepcionais
+from avaliacoes_pt
+group by unidade_sigla, unidade_nome
+order by perc_excepcionais desc, unidade_sigla;
+```
+
+---
+
+## Indicador I12 — Coerencia entre avaliacao do PT e do PE (MySQL)
+
+### O que esse indicador responde (I12)
+
+A pergunta central e: a nota media que a unidade recebe nas avaliacoes individuais (PT) e coerente com a nota que ela recebe na avaliacao coletiva (PE)?
+
+Alta divergencia entre as duas medias pode indicar:
+
+- **PT alto / PE baixo**: servidores bem avaliados individualmente, mas a entrega coletiva da unidade e percebida como insatisfatoria — possivel problema de coordenacao ou avaliacao individual por cordialidade.
+- **PT baixo / PE alto**: a unidade entrega bem coletivamente mas os planos individuais nao sao reconhecidos — possivel subavaliacao dos servidores ou desconexao entre planos individuais e resultados da unidade.
+
+**Tabelas base:** `avaliacoes` + `planos_trabalhos_consolidacoes` + `planos_trabalhos` (para PT) e `avaliacoes` + `planos_entregas` (para PE).
+
+### I12 — Mapeamento: verificar avaliacoes de PE
+
+```sql
+-- Confirmar que existem avaliacoes com plano_entrega_id preenchido
+select count(*) as total_avaliacoes_pe
+from avaliacoes
+where plano_entrega_id is not null
+  and deleted_at is null;
+```
+
+### I12 — Consulta
+
+```sql
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0 as incluir_excluidos
+),
+media_pt_por_unidade as (
+    select
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        round(avg(tan.nota), 2)    as media_nota_pt,
+        count(av.id)               as total_avaliacoes_pt
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    left join unidades un
+        on un.id = pt.unidade_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and tan.nota is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(av.created_at) between p.data_inicio and p.data_fim
+    group by coalesce(un.sigla, 'N.I.')
+),
+media_pe_por_unidade as (
+    select
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        round(avg(tan.nota), 2)    as media_nota_pe,
+        count(av.id)               as total_avaliacoes_pe
+    from avaliacoes av
+    join planos_entregas pe
+        on pe.id = av.plano_entrega_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    left join unidades un
+        on un.id = pe.unidade_id
+    cross join parametros p
+    where av.plano_entrega_id is not null
+      and tan.nota is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(av.created_at) between p.data_inicio and p.data_fim
+    group by coalesce(un.sigla, 'N.I.')
+)
+select
+    coalesce(pt.unidade_sigla, pe.unidade_sigla)  as unidade_sigla,
+    pt.media_nota_pt,
+    pt.total_avaliacoes_pt,
+    pe.media_nota_pe,
+    pe.total_avaliacoes_pe,
+    round(abs(pt.media_nota_pt - pe.media_nota_pe), 2) as diferenca_absoluta,
+    case
+        when pt.media_nota_pt is null or pe.media_nota_pe is null
+            then 'Dados insuficientes'
+        when abs(pt.media_nota_pt - pe.media_nota_pe) <= 1.0
+            then 'Coerente'
+        when abs(pt.media_nota_pt - pe.media_nota_pe) <= 2.0
+            then 'Divergencia moderada'
+        else
+            'Alta divergencia'
+    end as classificacao_coerencia
+from media_pt_por_unidade pt
+left join media_pe_por_unidade pe
+    on pe.unidade_sigla = pt.unidade_sigla
+order by diferenca_absoluta desc nulls last, unidade_sigla;
+```
+
+### I12 — Como interpretar o resultado
+
+| classificacao_coerencia | Diferenca | Acao recomendada |
+| --- | --- | --- |
+| Coerente | <= 1.0 | Nenhuma — as avaliacoes estao alinhadas |
+| Divergencia moderada | 1.1 a 2.0 | Monitorar — revisar criterios de avaliacao da unidade |
+| Alta divergencia | > 2.0 | Investigar — reuniao de calibragem entre lideranca e equipe |
+| Dados insuficientes | — | A unidade nao tem avaliacoes dos dois tipos no periodo |
+
+**Sobre `nulls last`:** unidades sem avaliacao de PE aparecem no final do resultado com `diferenca_absoluta = NULL` e classificacao `Dados insuficientes`. Isso e o comportamento esperado — indica que a unidade tem PT avaliados mas o Plano de Entregas ainda nao passou por avaliacao formal no periodo.

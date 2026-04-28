@@ -32,9 +32,15 @@ docs/
   04-configuracao-dbeaver.md          Configuração do DBeaver
   05-contexto-ocde-pgd.md             Contexto estratégico dos indicadores OCDE/PGD
   06-indicadores-ocde-mysql.md        Consultas SQL dos indicadores (I02 a I08)
+  07-estrutura-banco-dados.md         Arquitetura técnica completa do banco PETRVS (130+ tabelas)
+  08-guia-rapido-gestores.md          Guia sem SQL para gestores — interpretar indicadores sem técnica
 ```
 
 ## Início rápido
+
+**Para gestores (sem SQL):** leia [docs/08-guia-rapido-gestores.md](docs/08-guia-rapido-gestores.md) — entenda os indicadores e como interpretar os resultados sem precisar de banco de dados.
+
+**Para analistas (setup técnico):**
 
 1. Instale MySQL 8.0 e DBeaver Community no Windows
 2. Restaure o dump seguindo [docs/02-restauracao-dump-petrvs.md](docs/02-restauracao-dump-petrvs.md)
