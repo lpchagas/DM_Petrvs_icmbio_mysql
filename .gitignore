@@ -1,0 +1,19 @@
+# Dumps do banco (nunca versionar)
+*.sql.gz
+*.sql.zip
+C:/_dump/
+C:\_dump\
+
+# Arquivos locais com credenciais
+.env.local
+*.local
+
+# Pasta aninhada de sessao anterior (pode ser deletada manualmente)
+/DM_Petrvs_icmbio_mysql/
+
+# VS Code
+.vscode/settings.local.json
+
+# Windows
+Thumbs.db
+desktop.ini

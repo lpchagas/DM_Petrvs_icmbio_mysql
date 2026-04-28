@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "*.sql": "sql"
+    },
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false,
+    "files.exclude": {
+        "**/__pycache__": true
+    }
+}
