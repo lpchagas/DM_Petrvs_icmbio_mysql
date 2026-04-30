@@ -36,7 +36,7 @@ docs/
   03-acesso-direto-mysql-dbeaver.md Como conectar no MySQL via DBeaver + validações iniciais
   04-configuracao-dbeaver.md        Configuração detalhada do DBeaver
   05-contexto-ocde-pgd.md          Contexto estratégico dos indicadores OCDE/PGD
-  06-indicadores-ocde-mysql.md     [LEGADO — será substituído pelos arquivos abaixo]
+  06-indicadores-ocde-mysql.md     [ÍNDICE NAVEGÁVEL] Ponto de entrada do manual técnico
   07-estrutura-banco-dados.md      Arquitetura completa do banco PETRVS (técnico)
   08-guia-rapido-gestores.md       Início rápido para usuários de negócio (sem SQL)
 
@@ -45,16 +45,16 @@ docs/
   06.1-eixo1.md                    [CONCLUÍDO] Eixo 1 — Trabalho Remoto
   06.1.1-i01.md                    [CONCLUÍDO] I01 — Proporção por regime de trabalho
 
-  06.2-eixo2.md                    [PENDENTE] Eixo 2 — Execução
-  06.2.1-i02.md                    [PENDENTE] I02 — Taxa de cumprimento das entregas
-  06.2.2-i03.md                    [PENDENTE] I03 — Taxa de cumprimento por entrega
-  06.2.3-i04.md                    [PENDENTE] I04 — Índice de atingimento de metas
+  06.2-eixo2.md                    [CONCLUÍDO] Eixo 2 — Execução
+  06.2.1-i02.md                    [CONCLUÍDO] I02 — Taxa de cumprimento das entregas
+  06.2.2-i03.md                    [CONCLUÍDO] I03 — Taxa de cumprimento por entrega
+  06.2.3-i04.md                    [CONCLUÍDO] I04 — Índice de atingimento de metas
 
-  06.3-eixo3.md                    [PENDENTE] Eixo 3 — Carga de Trabalho
-  06.3.1-i05.md                    [PENDENTE] I05 — Distribuição de entregas por servidor
-  06.3.2-i06.md                    [PENDENTE] I06 — Grau de responsabilidade por entrega
-  06.3.3-i07.md                    [PENDENTE] I07 — Horas por entrega (absoluto)
-  06.3.4-i08.md                    [PENDENTE] I08 — Proporção de horas por entrega (%)
+  06.3-eixo3.md                    [CONCLUÍDO] Eixo 3 — Carga de Trabalho
+  06.3.1-i05.md                    [CONCLUÍDO] I05 — Distribuição de entregas por servidor
+  06.3.2-i06.md                    [CONCLUÍDO] I06 — Grau de responsabilidade por entrega
+  06.3.3-i07.md                    [CONCLUÍDO] I07 — Horas por entrega (absoluto)
+  06.3.4-i08.md                    [CONCLUÍDO] I08 — Proporção de horas por entrega (%)
 
   06.4-eixo4.md                    [CONCLUÍDO] Eixo 4 — Desempenho e Avaliação
   06.4.1-i09.md                    [CONCLUÍDO] I09 — Média da avaliação do PT por unidade
@@ -116,17 +116,22 @@ Ajuste apenas os valores nesse bloco. O restante da query não precisa ser edita
 
 ## 6. Indicadores disponíveis
 
-| Indicador | Descrição | Tabela base |
-|---|---|---|
-| I02 | Taxa de cumprimento das entregas (por unidade) | `planos_entregas_entregas` |
-| I03 | Taxa de cumprimento de metas por entrega (por entrega) | `planos_entregas_entregas` |
-| I04 | Índice de atingimento de metas — score médio por unidade | `planos_entregas_entregas` |
-| I05 | Distribuição das entregas entre os servidores | `planos_trabalhos_entregas` |
-| I06 | Grau de responsabilidade pelas entregas | `planos_trabalhos_entregas` |
-| I07 | Horas por entrega — planejadas (absolutas) | `planos_trabalhos_entregas` |
-| I08 | Proporção de horas por entrega — planejadas (%) | `planos_trabalhos_entregas` |
+| Indicador | Descrição | Tabela base | Documento |
+| --- | --- | --- | --- |
+| I01 | Proporção de servidores por regime de trabalho | `planos_trabalhos`, `tipos_modalidades` | [06.1.1-i01.md](docs/06.1.1-i01.md) |
+| I02 | Taxa de cumprimento das entregas (por unidade) | `planos_entregas_entregas` | [06.2.1-i02.md](docs/06.2.1-i02.md) |
+| I03 | Taxa de cumprimento de metas por entrega | `planos_entregas_entregas` | [06.2.2-i03.md](docs/06.2.2-i03.md) |
+| I04 | Índice de atingimento de metas — score médio por unidade | `planos_entregas_entregas` | [06.2.3-i04.md](docs/06.2.3-i04.md) |
+| I05 | Distribuição das entregas entre os servidores | `planos_trabalhos_entregas` | [06.3.1-i05.md](docs/06.3.1-i05.md) |
+| I06 | Grau de responsabilidade pelas entregas | `planos_trabalhos_entregas` | [06.3.2-i06.md](docs/06.3.2-i06.md) |
+| I07 | Horas por entrega — planejadas (absolutas) | `planos_trabalhos_entregas` | [06.3.3-i07.md](docs/06.3.3-i07.md) |
+| I08 | Proporção de horas por entrega — planejadas (%) | `planos_trabalhos_entregas` | [06.3.4-i08.md](docs/06.3.4-i08.md) |
+| I09 | Média da avaliação do Plano de Trabalho por unidade | `avaliacoes`, `tipos_avaliacoes_notas` | [06.4.1-i09.md](docs/06.4.1-i09.md) |
+| I10 | Percentual de avaliações inadequadas (nota 2) | `avaliacoes`, `tipos_avaliacoes_notas` | [06.4.2-i10.md](docs/06.4.2-i10.md) |
+| I11 | Percentual de avaliações excepcionais (nota 5) | `avaliacoes`, `tipos_avaliacoes_notas` | [06.4.3-i11.md](docs/06.4.3-i11.md) |
+| I12 | Coerência entre avaliação do PT e do PE | `avaliacoes`, `planos_entregas` | [06.4.4-i12.md](docs/06.4.4-i12.md) |
 
-O Indicador I01 (regimes de trabalho) depende de tabelas de modalidade não mapeadas neste projeto — não está implementado na versão MySQL.
+Índice completo do manual técnico: [docs/06-indicadores-ocde-mysql.md](docs/06-indicadores-ocde-mysql.md)
 
 ---
 
@@ -153,9 +158,10 @@ Contexto completo: [docs/05-contexto-ocde-pgd.md](docs/05-contexto-ocde-pgd.md)
 1. Confirmar que MySQL 8.0 está rodando (Serviços Windows > MySQL80)
 2. Confirmar que o banco petrvs_icmbio está restaurado
 3. Abrir DBeaver > conexão MySQL > banco petrvs_icmbio
-4. Abrir Consultas SQL/indicadores_ocde_pgd_icmbio_mysql_guiado.sql
-5. Ajustar data_inicio e data_fim no bloco `parametros`
-6. Executar o indicador desejado (buscar por I02, I03, etc.)
+4. Abrir docs/06-indicadores-ocde-mysql.md e navegar até o indicador desejado
+5. Copiar a consulta completa do documento do indicador para um SQL Editor
+6. Ajustar data_inicio e data_fim no bloco `parametros`
+7. Executar a consulta completa
 7. Exportar resultado (botão direito > Export > CSV/Excel)
 ```
 
@@ -185,7 +191,7 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 
 ---
 
-## 11. Estado do Projeto — Documentação (Atualização 28.04.2026)
+## 11. Estado do Projeto — Documentação (Atualização 30.04.2026)
 
 ### ✅ Concluído (Fase 1 - Exploração)
 
@@ -215,7 +221,7 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 - [x] Melhorar `02-restauracao-dump-petrvs.md` — resumo de etapas com tempo estimado, checklist final, seção de erros comuns expandida
 - [x] Ajustar `03-acesso-direto-mysql-dbeaver.md` — link para guia de gestores, correção de formatação markdown
 - [x] Analogias ICMBio incorporadas em `01-visao-geral.md` e `08-guia-rapido-gestores.md`
-- [ ] Revisar seções técnicas de `06-indicadores-ocde-mysql.md` — doc já tem explicações detalhadas; pendente apenas verificar se há gaps de linguagem de negócio para usuários avançados
+- [x] Revisar `06-indicadores-ocde-mysql.md` — substituído por índice navegável apontando para todos os 12 indicadores em 4 eixos (30.04.2026)
 
 ### ✅ Concluído (Fase 4 - Indicadores Completos e Correções de Lint) — 28.04.2026
 
@@ -244,8 +250,12 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 - [x] `docs/06.2.1-i02.md` — I02: taxa de cumprimento das entregas por unidade (inclui registro de auditoria com 5 bugs corrigidos; validado com dados reais da APA-BALEFRA)
 - [x] `docs/06.2.2-i03.md` — I03: taxa de cumprimento de metas por entrega (auditado e corrigido — mesmo Bug #5 do I02 mais 4 correções de documentação)
 - [x] `docs/06.2.3-i04.md` — I04: índice de atingimento de metas — score médio por unidade
-- [ ] `docs/06.3-eixo3.md` + I05, I06, I07, I08 — Eixo 3 (carga de trabalho) — **próximo a criar**
-- [ ] Substituir `06-indicadores-ocde-mysql.md` por um índice navegável apontando para os novos arquivos
+- [x] `docs/06.3-eixo3.md` — Eixo 3: contexto, `forca_trabalho`, CTE recursiva, 5 consultas de auditoria, limitações (30.04.2026)
+- [x] `docs/06.3.1-i05.md` — I05: distribuição por servidor, window function, servidor com 0 entregas (30.04.2026)
+- [x] `docs/06.3.2-i06.md` — I06: responsáveis por entrega, 4 faixas de risco, perspectiva inversa ao I05 (30.04.2026)
+- [x] `docs/06.3.3-i07.md` — I07: horas absolutas, CTE recursiva passo a passo, GREATEST/LEAST, tabela de conversão (30.04.2026)
+- [x] `docs/06.3.4-i08.md` — I08: proporção de horas, denominador capacidade_unidade, invariante ≤ 100% (30.04.2026)
+- [x] `docs/06-indicadores-ocde-mysql.md` — substituído por índice navegável com todos os 12 indicadores em 4 eixos (30.04.2026)
 
 ### 📋 Próximas Tarefas (Futuro)
 
@@ -256,38 +266,30 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 
 ---
 
-## 12. Instruções para Continuar em Novo Chat
+## 12. Referência rápida para novos chats
 
-**Para retomar a reestruturação do manual técnico (Fase 5):**
+O manual técnico está completo. Em um novo chat, leia esta seção e a seção 11 para ter o contexto completo do projeto.
 
-1. Abrir este arquivo (`CLAUDE.md`) e ler a seção "Estado do Projeto — Documentação"
-2. Ler os arquivos já criados como referência de tom e estrutura:
-   - `docs/06.4-eixo4.md` (modelo de documento de eixo)
-   - `docs/06.4.1-i09.md` (modelo de documento de indicador)
-3. Continuar a partir do **Eixo 1**, na ordem:
-   - Criar `docs/06.1-eixo1.md` — apresentar ao usuário para aprovação antes de prosseguir
-   - Criar `docs/06.1.1-i01.md` — I01 (regime de trabalho, tabela `tipos_modalidades`)
-   - Criar `docs/06.2-eixo2.md` + I02, I03, I04
-   - Criar `docs/06.3-eixo3.md` + I05, I06, I07, I08
-   - Por último: substituir `06-indicadores-ocde-mysql.md` por índice navegável
-4. Aplicar sempre as **Medidas de Qualidade**:
-   - (i) Dividir em subtarefas menores
-   - (ii) Explicar passos antes de executar
-   - (iii) Justificar decisões
-   - (iv) Gerar múltiplas opções e escolher a melhor
-5. Para cada documento de eixo: apresentar ao usuário para aprovação antes de criar os indicadores do eixo
-6. Para cada indicador: criar individualmente, aguardar aprovação, depois avançar para o próximo
-
-**Estrutura padrão de cada documento de indicador:**
-
-- (i) Finalidade — o que a consulta faz, pergunta central respondida
-- (ii) Consulta completa MySQL — seguindo o padrão `parametros` CTE
-- (iii) Passos da consulta — um subitem por bloco CTE, com analogias para usuários de negócio
-- (iv) Como interpretar o resultado — tabela de colunas + exemplos nomeados com unidades do ICMBio (CGOV, CGOF, AUDIT, DIREC, COGEO)
+**Ponto de entrada do manual:** [docs/06-indicadores-ocde-mysql.md](docs/06-indicadores-ocde-mysql.md)
 
 **Referência rápida do banco:**
+
 - Banco: `petrvs_icmbio` (MySQL 8.0 local)
 - Credenciais: user=`root`, password=`Bfz1614A#` (não commitar!)
 - Tabelas críticas: `planos_entregas_entregas`, `planos_trabalhos_entregas`, `planos_trabalhos`, `planos_entregas`, `unidades`, `usuarios`
 - Dump: `C:\_dump\D.PGD.MGI.001.DUMP.20260226ICMBIO.sql` (não versionar)
 - Soft-delete: usar `deleted_at IS NULL` em queries
+
+**Estrutura padrão de cada documento de indicador** (para novos indicadores futuros):
+
+- (i) Finalidade — pergunta central respondida
+- (ii) Consulta completa MySQL — seguindo o padrão `parametros` CTE
+- (iii) Passos da consulta — um subitem por bloco CTE, com analogias para usuários de negócio
+- (iv) Como interpretar o resultado — tabela de colunas + exemplos nomeados com unidades do ICMBio (CGOV, CGOF, AUDIT, DIREC, COGEO)
+
+**Referências de tom e estrutura:**
+
+- Modelo de documento de eixo: `docs/06.3-eixo3.md`
+- Modelo de documento de indicador simples (GROUP BY): `docs/06.2.1-i02.md`
+- Modelo de documento de indicador com window function: `docs/06.3.1-i05.md`
+- Modelo de documento de indicador com CTE recursiva: `docs/06.3.3-i07.md`
