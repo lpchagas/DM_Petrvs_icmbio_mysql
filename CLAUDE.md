@@ -36,9 +36,31 @@ docs/
   03-acesso-direto-mysql-dbeaver.md Como conectar no MySQL via DBeaver + validações iniciais
   04-configuracao-dbeaver.md        Configuração detalhada do DBeaver
   05-contexto-ocde-pgd.md          Contexto estratégico dos indicadores OCDE/PGD
-  06-indicadores-ocde-mysql.md     Documentação das queries + explicação de cada indicador
-  07-estrutura-banco-dados.md      [NOVO] Arquitetura completa do banco PETRVS (técnico)
-  08-guia-rapido-gestores.md       [EM PROGRESSO] Início rápido para usuários de negócio
+  06-indicadores-ocde-mysql.md     [LEGADO — será substituído pelos arquivos abaixo]
+  07-estrutura-banco-dados.md      Arquitetura completa do banco PETRVS (técnico)
+  08-guia-rapido-gestores.md       Início rápido para usuários de negócio (sem SQL)
+
+  --- Reestruturação em andamento: manual técnico por eixo/indicador ---
+
+  06.1-eixo1.md                    [CONCLUÍDO] Eixo 1 — Trabalho Remoto
+  06.1.1-i01.md                    [CONCLUÍDO] I01 — Proporção por regime de trabalho
+
+  06.2-eixo2.md                    [PENDENTE] Eixo 2 — Execução
+  06.2.1-i02.md                    [PENDENTE] I02 — Taxa de cumprimento das entregas
+  06.2.2-i03.md                    [PENDENTE] I03 — Taxa de cumprimento por entrega
+  06.2.3-i04.md                    [PENDENTE] I04 — Índice de atingimento de metas
+
+  06.3-eixo3.md                    [PENDENTE] Eixo 3 — Carga de Trabalho
+  06.3.1-i05.md                    [PENDENTE] I05 — Distribuição de entregas por servidor
+  06.3.2-i06.md                    [PENDENTE] I06 — Grau de responsabilidade por entrega
+  06.3.3-i07.md                    [PENDENTE] I07 — Horas por entrega (absoluto)
+  06.3.4-i08.md                    [PENDENTE] I08 — Proporção de horas por entrega (%)
+
+  06.4-eixo4.md                    [CONCLUÍDO] Eixo 4 — Desempenho e Avaliação
+  06.4.1-i09.md                    [CONCLUÍDO] I09 — Média da avaliação do PT por unidade
+  06.4.2-i10.md                    [CONCLUÍDO] I10 — Percentual de avaliações inadequadas
+  06.4.3-i11.md                    [CONCLUÍDO] I11 — Percentual de avaliações excepcionais
+  06.4.4-i12.md                    [CONCLUÍDO] I12 — Coerência entre avaliação PT e PE
 
 .gitignore
 .vscode/settings.json
@@ -200,6 +222,31 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 - [x] Reescrever `docs/05-contexto-ocde-pgd.md` — todos os 12 indicadores com fórmulas, contexto, tabelas e status
 - [x] Atualizar `docs/06-indicadores-ocde-mysql.md` — inserir I01 com queries de mapeamento e variante por unidade; inserir I09–I12 com queries de validação e consultas completas; corrigir MD031 (8 blocos de código sem linha em branco) e MD024 (15 headings duplicados)
 
+### ✅ Concluído (Fase 5 - Reestruturação do doc 06 em manual técnico por eixo/indicador) — 29.04.2026
+
+**Objetivo:** desdobrar `06-indicadores-ocde-mysql.md` em arquivos individuais por eixo (4 arquivos) e por indicador (12 arquivos), estruturando um manual técnico para servidores públicos que queiram implementar os indicadores OCDE a partir do dump PETRVS.
+
+**Estrutura de cada arquivo de indicador:** (i) finalidade, (ii) consulta SQL completa, (iii) passos da consulta com explicações para usuários de negócio, (iv) como interpretar o resultado com exemplos do ICMBio.
+
+**Arquivos criados nesta fase:**
+
+- [x] `docs/06.4-eixo4.md` — Eixo 4: contexto estratégico, escala de avaliação, tabelas, pré-requisito de mapeamento, limitações
+- [x] `docs/06.4.1-i09.md` — I09: média da avaliação do PT por unidade
+- [x] `docs/06.4.2-i10.md` — I10: percentual de avaliações inadequadas (nota 2)
+- [x] `docs/06.4.3-i11.md` — I11: percentual de avaliações excepcionais (nota 5)
+- [x] `docs/06.4.4-i12.md` — I12: coerência entre avaliação do PT e do PE
+
+**Pendente (retomar no próximo chat):**
+
+- [x] `docs/06.1-eixo1.md` — Eixo 1: contexto, regime de trabalho, tabelas, consultas de mapeamento
+- [x] `docs/06.1.1-i01.md` — I01: proporção por regime (variante geral + por unidade + snapshot ROW_NUMBER)
+- [x] `docs/06.2-eixo2.md` — Eixo 2 (execução): contexto, tabelas, pré-requisito de auditoria, relação I02/I03/I04
+- [x] `docs/06.2.1-i02.md` — I02: taxa de cumprimento das entregas por unidade (inclui registro de auditoria com 5 bugs corrigidos; validado com dados reais da APA-BALEFRA)
+- [x] `docs/06.2.2-i03.md` — I03: taxa de cumprimento de metas por entrega (auditado e corrigido — mesmo Bug #5 do I02 mais 4 correções de documentação)
+- [x] `docs/06.2.3-i04.md` — I04: índice de atingimento de metas — score médio por unidade
+- [ ] `docs/06.3-eixo3.md` + I05, I06, I07, I08 — Eixo 3 (carga de trabalho) — **próximo a criar**
+- [ ] Substituir `06-indicadores-ocde-mysql.md` por um índice navegável apontando para os novos arquivos
+
 ### 📋 Próximas Tarefas (Futuro)
 
 - [ ] Validar campo `tipos_modalidades.nome` no banco e confirmar I01 com dados reais
@@ -211,16 +258,32 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 
 ## 12. Instruções para Continuar em Novo Chat
 
-**Para retomar a tarefa de simplificação da documentação:**
+**Para retomar a reestruturação do manual técnico (Fase 5):**
 
-1. Abrir este arquivo (`CLAUDE.md`)
-2. Ir para a seção "Estado do Projeto — Documentação"
-3. Continuar a partir de **Fase 2 — Atualizar Referências**
+1. Abrir este arquivo (`CLAUDE.md`) e ler a seção "Estado do Projeto — Documentação"
+2. Ler os arquivos já criados como referência de tom e estrutura:
+   - `docs/06.4-eixo4.md` (modelo de documento de eixo)
+   - `docs/06.4.1-i09.md` (modelo de documento de indicador)
+3. Continuar a partir do **Eixo 1**, na ordem:
+   - Criar `docs/06.1-eixo1.md` — apresentar ao usuário para aprovação antes de prosseguir
+   - Criar `docs/06.1.1-i01.md` — I01 (regime de trabalho, tabela `tipos_modalidades`)
+   - Criar `docs/06.2-eixo2.md` + I02, I03, I04
+   - Criar `docs/06.3-eixo3.md` + I05, I06, I07, I08
+   - Por último: substituir `06-indicadores-ocde-mysql.md` por índice navegável
 4. Aplicar sempre as **Medidas de Qualidade**:
    - (i) Dividir em subtarefas menores
    - (ii) Explicar passos antes de executar
    - (iii) Justificar decisões
    - (iv) Gerar múltiplas opções e escolher a melhor
+5. Para cada documento de eixo: apresentar ao usuário para aprovação antes de criar os indicadores do eixo
+6. Para cada indicador: criar individualmente, aguardar aprovação, depois avançar para o próximo
+
+**Estrutura padrão de cada documento de indicador:**
+
+- (i) Finalidade — o que a consulta faz, pergunta central respondida
+- (ii) Consulta completa MySQL — seguindo o padrão `parametros` CTE
+- (iii) Passos da consulta — um subitem por bloco CTE, com analogias para usuários de negócio
+- (iv) Como interpretar o resultado — tabela de colunas + exemplos nomeados com unidades do ICMBio (CGOV, CGOF, AUDIT, DIREC, COGEO)
 
 **Referência rápida do banco:**
 - Banco: `petrvs_icmbio` (MySQL 8.0 local)
