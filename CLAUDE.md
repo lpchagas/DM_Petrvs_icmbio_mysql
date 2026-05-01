@@ -257,6 +257,29 @@ O dump fica fora do repositório. Nunca versionar o arquivo de dump.
 - [x] `docs/06.3.4-i08.md` — I08: proporção de horas, denominador capacidade_unidade, invariante ≤ 100% (30.04.2026)
 - [x] `docs/06-indicadores-ocde-mysql.md` — substituído por índice navegável com todos os 12 indicadores em 4 eixos (30.04.2026)
 
+### ✅ Concluído (Fase 6 - Revisão de Qualidade dos Arquivos SQL) — 30.04.2026
+
+Auditoria completa das queries nos dois arquivos SQL executáveis:
+
+- `Consultas SQL/indicadores_ocde_pgd_icmbio_mysql_direto.sql`
+- `Consultas SQL/indicadores_ocde_pgd_icmbio_mysql_guiado.sql`
+
+**10 dimensões de teste aplicadas** — resultado por indicador:
+
+| Indicador | TQ-01 Join | TQ-02 Data | TQ-03 Soft-delete | TQ-05 Taxonomia | TQ-06 Colunas | Resultado |
+| --------- | ---------- | ---------- | ----------------- | --------------- | ------------- | --------- |
+| I02 | ❌→✅ | ❌→✅ | ❌→✅ | ❌→✅ | ❌→✅ | 5 bugs corrigidos |
+| I03 | ❌→✅ | ✅ | ❌→✅ | ❌→✅ | ⚠️→✅ | 3 bugs corrigidos |
+| I04 | ❌→✅ | ❌→✅ | ❌→✅ | ❌→✅ | ⚠️→✅ | 4 bugs corrigidos |
+| I05 | ✅ | ✅ | ✅ | ✅ | ✅ | Sem alterações |
+| I06 | ✅ | ✅ | ✅ | ✅ | ✅ | Sem alterações |
+| I07 | ✅ | ✅ | ✅ | N/A | ✅ | Sem alterações |
+| I08 | ✅ | ✅ | ✅ | N/A | ✅ | Sem alterações |
+
+**Raiz dos bugs em I02/I03/I04:** os arquivos SQL nunca foram sincronizados com as correções documentadas em `docs/06.2.1-i02.md`, `docs/06.2.2-i03.md` e `docs/06.2.3-i04.md`.
+
+**Nota:** os arquivos SQL não contêm I01, I09-I12 (declarado no cabeçalho). As queries desses indicadores estão apenas nos arquivos de documentação individuais.
+
 ### 📋 Próximas Tarefas (Futuro)
 
 - [ ] Validar campo `tipos_modalidades.nome` no banco e confirmar I01 com dados reais

@@ -14,78 +14,242 @@
 -- 4. Execute uma consulta por vez.
 --
 -- INDICE
--- I02  Indicador 2 - Taxa de cumprimento das entregas
--- I03  Indicador 3 - Taxa de cumprimento de metas por entrega
--- I04  Indicador 4 - Indice de atingimento de metas
--- I05  Indicador 5 - Distribuicao das entregas entre os servidores
--- I06  Indicador 6 - Grau de responsabilidade pelas entregas
--- I07  Indicador 7 - Horas por entrega - planejadas
--- I08  Indicador 8 - Proporcao de horas por entrega - planejadas
+-- I01  Indicador 1  - Proporcao de servidores por regime de trabalho (2 variantes)
+-- I02  Indicador 2  - Taxa de cumprimento das entregas
+-- I03  Indicador 3  - Taxa de cumprimento de metas por entrega
+-- I04  Indicador 4  - Indice de atingimento de metas
+-- I05  Indicador 5  - Distribuicao das entregas entre os servidores
+-- I06  Indicador 6  - Grau de responsabilidade pelas entregas
+-- I07  Indicador 7  - Horas por entrega - planejadas
+-- I08  Indicador 8  - Proporcao de horas por entrega - planejadas
+-- I09  Indicador 9  - Media da avaliacao do PT por unidade
+-- I10  Indicador 10 - Percentual de avaliacoes inadequadas (nota 2)
+-- I11  Indicador 11 - Percentual de avaliacoes excepcionais (nota 5)
+-- I12  Indicador 12 - Coerencia entre avaliacao do PT e do PE
 --
 -- DICA IMPORTANTE
 -- No bloco `parametros`:
 -- - ajuste `data_inicio` e `data_fim`
 -- - use `incluir_excluidos = 1` se quiser incluir registros com `deleted_at`
+--
+-- REVISAO DE QUALIDADE: 30.04.2026
+-- I02, I03 e I04 corrigidos (ver cabecalho de cada indicador para detalhes)
+-- I01 e I09-I12 adicionados em 01.05.2026
 
 
 -- =========================================================
--- I02 - Indicador 2
--- Taxa de cumprimento das entregas
+-- I01 - Indicador 1 - Variante 1
+-- Proporcao de servidores por regime de trabalho (visao geral)
 -- =========================================================
 --
 -- Regra utilizada:
--- - meta_planejada: progresso_esperado
--- - meta_executada: progresso_realizado
--- - entrega concluida: meta_executada >= meta_planejada
+-- - para cada servidor com PT vigente no periodo, captura a modalidade de trabalho
+-- - conta servidores distintos por modalidade em todo o orgao
+-- - calcula a proporcao de cada regime sobre o total
 --
--- Nome da entrega:
--- - prioriza `descricao`
--- - se vazio, usa `descricao_entrega`
+-- Requisito tecnico:
+-- - usa window function sum() over () para calcular proporcao - requer MySQL 8.0+
+--
+-- Pre-requisito de mapeamento:
+-- - os valores de modalidade vem de tipos_modalidades.nome
+-- - verificar no banco quais sao os nomes exatos (ex: 'Teletrabalho', 'Presencial')
+-- - um servidor com PT em mais de uma modalidade no periodo sera contado
+--   na modalidade do primeiro PT captado pelo SELECT DISTINCT (comportamento esperado)
 
 with parametros as (
     select
         date('2025-01-01') as data_inicio,
         date('2025-12-31') as data_fim,
-        0 as incluir_excluidos
+        0                  as incluir_excluidos
 ),
-entregas_base as (
-    select
-        coalesce(u.sigla, 'N.I.') as unidade_sigla,
-        coalesce(u.nome, 'N.I.') as unidade_nome,
-        pee.id as id_entrega,
-        nullif(trim(coalesce(pee.descricao, '')), '') as nome_entrega_base,
-        nullif(trim(coalesce(pee.descricao_entrega, '')), '') as descricao_entrega,
-        pee.progresso_esperado as meta_planejada,
-        coalesce(pee.progresso_realizado, 0) as meta_executada,
-        pee.deleted_at,
-        case
-            when pee.deleted_at is null then 'ATIVO'
-            else 'EXCLUIDO'
-        end as status_registro
-    from planos_entregas_entregas pee
-    left join unidades u
-        on u.id = pee.unidade_id
+servidores_no_periodo as (
+    select distinct
+        pt.usuario_id,
+        coalesce(tm.nome, 'N.I.') as modalidade
+    from planos_trabalhos pt
+    left join tipos_modalidades tm
+        on tm.id = pt.tipo_modalidade_id
     cross join parametros p
-    where date(pee.data_fim) between p.data_inicio and p.data_fim
-      and (p.incluir_excluidos = 1 or pee.deleted_at is null)
-      and pee.progresso_esperado is not null
-      and pee.progresso_esperado > 0
+    where date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+      and pt.usuario_id is not null
+),
+contagem_por_regime as (
+    select
+        modalidade,
+        count(distinct usuario_id) as total_servidores
+    from servidores_no_periodo
+    group by modalidade
+)
+select
+    modalidade,
+    total_servidores,
+    round(
+        total_servidores * 100.0
+            / nullif(sum(total_servidores) over (), 0),
+        2
+    ) as proporcao_perc
+from contagem_por_regime
+order by total_servidores desc;
+
+
+-- =========================================================
+-- I01 - Indicador 1 - Variante 2
+-- Proporcao de servidores por regime de trabalho (por unidade)
+-- =========================================================
+--
+-- Diferenca em relacao a Variante 1:
+-- - desagrega o resultado por unidade organizacional
+-- - a proporcao e calculada dentro de cada unidade (partition by unidade_sigla)
+-- - permite comparar o perfil de regime entre unidades diferentes
+--
+-- Requisito tecnico:
+-- - usa window function sum() over (partition by) - requer MySQL 8.0+
+
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0                  as incluir_excluidos
+),
+servidores_por_unidade as (
+    select distinct
+        coalesce(un.sigla, 'N.I.') as unidade_sigla,
+        coalesce(un.nome,  'N.I.') as unidade_nome,
+        pt.usuario_id,
+        coalesce(tm.nome,  'N.I.') as modalidade
+    from planos_trabalhos pt
+    left join tipos_modalidades tm
+        on tm.id = pt.tipo_modalidade_id
+    left join unidades un
+        on un.id = pt.unidade_id
+    cross join parametros p
+    where date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+      and pt.usuario_id is not null
+),
+contagem as (
+    select
+        unidade_sigla,
+        min(unidade_nome)          as unidade_nome,
+        modalidade,
+        count(distinct usuario_id) as total_servidores
+    from servidores_por_unidade
+    group by unidade_sigla, modalidade
 )
 select
     unidade_sigla,
-    min(unidade_nome) as unidade_nome,
-    count(*) as total_entregas_planejadas,
-    sum(case when meta_executada >= meta_planejada then 1 else 0 end) as total_entregas_concluidas,
+    unidade_nome,
+    modalidade,
+    total_servidores,
     round(
-        (
-            sum(case when meta_executada >= meta_planejada then 1 else 0 end)
-            / nullif(count(*), 0)
-        ) * 100,
+        total_servidores * 100.0
+            / nullif(sum(total_servidores) over (partition by unidade_sigla), 0),
         2
-    ) as taxa_cumprimento_perc
-from entregas_base
-group by unidade_sigla
-order by unidade_sigla;
+    ) as proporcao_na_unidade_perc
+from contagem
+order by unidade_sigla, total_servidores desc;
+
+
+-- =========================================================
+-- I02 - Indicador 2
+-- Taxa de cumprimento das entregas (por unidade)
+-- =========================================================
+--
+-- Regra OCDE:
+-- - denominador (B): total de entregas com meta valida no ciclo PE
+-- - numerador (A): entregas onde meta_executada >= meta_planejada
+-- - taxa: (A / B) x 100
+--
+-- Correcao critica aplicada (30.04.2026):
+-- - join por pe.unidade_id (dono do PE), nao pee.unidade_id (executor da entrega)
+-- - filtro de data por sobreposicao do ciclo PE, nao por prazo individual
+-- - pe.deleted_at adicionado ao soft-delete
+-- - coluna grupo_performance (A/B/C/D) adicionada
+-- - colunas total_cadastradas e total_vence_no_periodo adicionadas
+
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0                  as incluir_excluidos
+),
+universo_bruto as (
+    select
+        u.sigla  as unidade_sigla,
+        count(*) as total_cadastradas
+    from planos_entregas pe
+    join planos_entregas_entregas pee
+        on pee.plano_entrega_id = pe.id
+    join unidades u
+        on u.id = pe.unidade_id
+    cross join parametros p
+    where date(pe.data_inicio) <= p.data_fim
+      and date(pe.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pe.deleted_at  is null)
+      and (p.incluir_excluidos = 1 or pee.deleted_at is null)
+    group by u.sigla
+),
+entregas_ciclo as (
+    select
+        u.sigla                              as unidade_sigla,
+        pee.id                               as id_entrega,
+        pee.progresso_esperado               as meta_planejada,
+        coalesce(pee.progresso_realizado, 0) as meta_executada,
+        case
+            when date(pee.data_fim) between p.data_inicio and p.data_fim
+            then 1 else 0
+        end                                  as vence_no_periodo
+    from planos_entregas pe
+    join planos_entregas_entregas pee
+        on pee.plano_entrega_id = pe.id
+    join unidades u
+        on u.id = pe.unidade_id
+    cross join parametros p
+    where date(pe.data_inicio) <= p.data_fim
+      and date(pe.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pe.deleted_at  is null)
+      and (p.incluir_excluidos = 1 or pee.deleted_at is null)
+      and pee.progresso_esperado is not null
+      and pee.progresso_esperado > 0
+),
+resumo as (
+    select
+        unidade_sigla,
+        count(*)                                                          as total_no_ciclo,
+        sum(vence_no_periodo)                                             as total_vence_no_periodo,
+        sum(case when meta_executada >= meta_planejada then 1 else 0 end) as total_concluidas,
+        round(
+            sum(case when meta_executada >= meta_planejada then 1 else 0 end)
+                / nullif(count(*), 0) * 100,
+            2
+        )                                                                 as taxa_cumprimento_perc
+    from entregas_ciclo
+    group by unidade_sigla
+)
+select
+    r.unidade_sigla,
+    b.total_cadastradas,
+    r.total_no_ciclo,
+    r.total_vence_no_periodo,
+    round(
+        r.total_vence_no_periodo * 100.0 / nullif(r.total_no_ciclo, 0),
+        1
+    )                                                                     as proporcao_vence_no_periodo_perc,
+    r.total_concluidas,
+    r.taxa_cumprimento_perc,
+    case
+        when r.taxa_cumprimento_perc >= 90 then 'A - Alto desempenho'
+        when r.taxa_cumprimento_perc >= 70 then 'B - Bom desempenho'
+        when r.taxa_cumprimento_perc >= 50 then 'C - Desempenho intermediario'
+        else                                    'D - Baixo desempenho'
+    end                                                                   as grupo_performance
+from resumo r
+left join universo_bruto b
+    on b.unidade_sigla = r.unidade_sigla
+order by r.taxa_cumprimento_perc desc, r.unidade_sigla;
 
 
 -- =========================================================
@@ -98,61 +262,78 @@ order by unidade_sigla;
 -- - meta_executada: progresso_realizado
 -- - taxa: (meta_executada / meta_planejada) * 100
 --
--- Nome da entrega:
--- - prioriza `descricao`
--- - se vazio, usa `descricao_entrega`
+-- Filtro de data: pee.data_fim (prazo individual) — intencional no I03.
+-- O I03 responde "como foi cada entrega que venceu neste periodo?",
+-- diferente do I02/I04 que usam sobreposicao do ciclo PE completo.
+--
+-- Correcao critica aplicada (30.04.2026):
+-- - join substituido para pe.unidade_id (dono do PE)
+-- - pe.deleted_at adicionado ao soft-delete
+-- - status_entrega expandido de 3 para 5 categorias (padrao OCDE)
 
 with parametros as (
     select
         date('2025-01-01') as data_inicio,
         date('2025-12-31') as data_fim,
-        0 as incluir_excluidos
+        0                  as incluir_excluidos
 ),
 entregas_base as (
     select
-        coalesce(u.sigla, 'N.I.') as unidade_sigla,
-        coalesce(u.nome, 'N.I.') as unidade_nome,
-        pee.id as id_entrega,
-        nullif(trim(coalesce(pee.descricao, '')), '') as nome_entrega_base,
-        nullif(trim(coalesce(pee.descricao_entrega, '')), '') as descricao_entrega,
-        pee.progresso_esperado as meta_planejada,
-        coalesce(pee.progresso_realizado, 0) as meta_executada,
-        pee.deleted_at,
-        case
-            when pee.deleted_at is null then 'ATIVO'
-            else 'EXCLUIDO'
-        end as status_registro
-    from planos_entregas_entregas pee
-    left join unidades u
-        on u.id = pee.unidade_id
+        u.sigla                              as unidade_sigla,
+        pee.id                               as id_entrega,
+        coalesce(
+            nullif(trim(pee.descricao), ''),
+            nullif(trim(pee.descricao_entrega), ''),
+            'N.I.'
+        )                                    as nome_entrega,
+        pee.progresso_esperado               as meta_planejada,
+        coalesce(pee.progresso_realizado, 0) as meta_executada
+    from planos_entregas pe
+    join planos_entregas_entregas pee
+        on pee.plano_entrega_id = pe.id
+    join unidades u
+        on u.id = pe.unidade_id
     cross join parametros p
     where date(pee.data_fim) between p.data_inicio and p.data_fim
+      and (p.incluir_excluidos = 1 or pe.deleted_at  is null)
       and (p.incluir_excluidos = 1 or pee.deleted_at is null)
       and pee.progresso_esperado is not null
       and pee.progresso_esperado > 0
+),
+entregas_com_taxa as (
+    select
+        unidade_sigla,
+        id_entrega,
+        nome_entrega,
+        meta_planejada,
+        meta_executada,
+        round(
+            meta_executada / nullif(meta_planejada, 0) * 100,
+            2
+        )                                    as taxa_atingimento_perc
+    from entregas_base
 )
 select
-    id_entrega as id,
     unidade_sigla,
-    unidade_nome,
-    coalesce(nome_entrega_base, descricao_entrega, 'N.I.') as nome_entrega,
-    descricao_entrega,
+    id_entrega,
+    nome_entrega,
     meta_planejada,
     meta_executada,
-    round((meta_executada / nullif(meta_planejada, 0)) * 100, 2) as taxa_atingimento_meta_perc,
+    taxa_atingimento_perc,
     case
-        when meta_executada > meta_planejada then 'Superexecutada'
-        when meta_executada = meta_planejada then 'No alvo'
-        else 'Subexecutada'
-    end as classificacao_execucao,
-    status_registro
-from entregas_base
-order by unidade_sigla, id_entrega;
+        when taxa_atingimento_perc >  100 then 'Superexecutada'
+        when taxa_atingimento_perc =  100 then 'Concluida'
+        when taxa_atingimento_perc >=  70 then 'Parcialmente cumprida'
+        when taxa_atingimento_perc >    0 then 'Em andamento'
+        else                                   'Nao executada'
+    end as status_entrega
+from entregas_com_taxa
+order by unidade_sigla, taxa_atingimento_perc desc;
 
 
 -- =========================================================
 -- I04 - Indicador 4
--- Indice de atingimento de metas
+-- Indice de atingimento de metas (score medio por unidade)
 -- =========================================================
 --
 -- Regra utilizada:
@@ -160,43 +341,64 @@ order by unidade_sigla, id_entrega;
 -- - score da unidade: media de todas as proporcoes x 100
 --
 -- Diferenca em relacao ao Indicador 3:
--- - Indicador 3: mostra a taxa de cada entrega individualmente
--- - Indicador 4: resume em um unico score medio por unidade
+-- - Indicador 3: mostra a taxa de cada entrega individualmente (filtra por pee.data_fim)
+-- - Indicador 4: resume em um unico score medio por unidade (usa ciclo PE = mesmo escopo do I02)
 --
 -- O uso de abs() garante que metas expressas como reducao (negativo)
 -- sejam tratadas corretamente na proporcao.
+--
+-- Correcao critica aplicada (30.04.2026):
+-- - join substituido para pe.unidade_id (dono do PE)
+-- - filtro de data corrigido para sobreposicao do ciclo PE (igual ao I02)
+--   garantindo que total_no_ciclo do I04 coincida com total_no_ciclo do I02
+-- - pe.deleted_at adicionado ao soft-delete
+-- - coluna grupo_performance (A/B/C/D) adicionada
 
 with parametros as (
     select
         date('2025-01-01') as data_inicio,
         date('2025-12-31') as data_fim,
-        0 as incluir_excluidos
+        0                  as incluir_excluidos
 ),
-calculo_por_entrega as (
+entregas_ciclo as (
     select
-        coalesce(u.sigla, 'N.I.') as unidade_sigla,
-        coalesce(u.nome, 'N.I.') as unidade_nome,
-        pee.id as id_entrega,
+        u.sigla                                      as unidade_sigla,
+        pee.id                                       as id_entrega,
         abs(coalesce(pee.progresso_realizado, 0))
             / nullif(abs(pee.progresso_esperado), 0) as proporcao_atingimento
-    from planos_entregas_entregas pee
-    left join unidades u
-        on u.id = pee.unidade_id
+    from planos_entregas pe
+    join planos_entregas_entregas pee
+        on pee.plano_entrega_id = pe.id
+    join unidades u
+        on u.id = pe.unidade_id
     cross join parametros p
-    where date(pee.data_fim) between p.data_inicio and p.data_fim
+    where date(pe.data_inicio) <= p.data_fim
+      and date(pe.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pe.deleted_at  is null)
       and (p.incluir_excluidos = 1 or pee.deleted_at is null)
       and pee.progresso_esperado is not null
       and pee.progresso_esperado > 0
+),
+resumo as (
+    select
+        unidade_sigla,
+        count(id_entrega)                          as total_no_ciclo,
+        round(avg(proporcao_atingimento) * 100, 2) as score_atingimento_perc
+    from entregas_ciclo
+    group by unidade_sigla
 )
 select
     unidade_sigla,
-    min(unidade_nome) as unidade_nome,
-    count(id_entrega) as total_entregas_planejadas,
-    round(avg(proporcao_atingimento) * 100, 2) as score_atingimento_metas_perc
-from calculo_por_entrega
-where proporcao_atingimento is not null
-group by unidade_sigla
-order by unidade_sigla;
+    total_no_ciclo,
+    score_atingimento_perc,
+    case
+        when score_atingimento_perc >= 90 then 'A - Alto desempenho'
+        when score_atingimento_perc >= 70 then 'B - Bom desempenho'
+        when score_atingimento_perc >= 50 then 'C - Desempenho intermediario'
+        else                                   'D - Baixo desempenho'
+    end as grupo_performance
+from resumo
+order by score_atingimento_perc desc, unidade_sigla;
 
 
 -- =========================================================
@@ -625,3 +827,375 @@ join capacidade_unidade c
 group by h.unidade_sigla, h.nome_entrega,
          c.total_horas_disponiveis_unidade
 order by h.unidade_sigla, proporcao_horas_perc desc;
+
+
+-- =========================================================
+-- I09 - Indicador 9
+-- Media da avaliacao do Plano de Trabalho por unidade
+-- =========================================================
+--
+-- Regra utilizada:
+-- - caminho do vinculo: avaliacoes -> planos_trabalhos_consolidacoes -> planos_trabalhos
+-- - nota da avaliacao: tipos_avaliacoes_notas.nota (campo numerico 1-5)
+-- - agrupa por unidade e calcula media, minimo, maximo e distribuicao de notas
+--
+-- Pre-requisito de mapeamento:
+-- - verificar nome do campo numerico em tipos_avaliacoes_notas
+--   (pode ser 'nota', 'valor' ou 'pontuacao' conforme versao do PETRVS)
+-- - verificar se avaliacoes.plano_trabalho_consolidacao_id esta populado no banco
+--
+-- Faixas de desempenho calculadas no SELECT final:
+-- - media >= 4.5: Excepcional
+-- - media >= 3.5: Alto desempenho
+-- - media >= 2.5: Adequado
+-- - media >= 1.5: Inadequado
+-- - media <  1.5: Nao executado
+
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0                  as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        av.id          as id_avaliacao,
+        pt.unidade_id,
+        tan.nota       as valor_nota
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+),
+media_por_unidade as (
+    select
+        coalesce(un.sigla, 'N.I.')                               as unidade_sigla,
+        coalesce(un.nome, 'N.I.')                                as unidade_nome,
+        count(avpt.id_avaliacao)                                 as total_avaliacoes_pt,
+        round(avg(avpt.valor_nota), 2)                           as media_nota_pt,
+        min(avpt.valor_nota)                                     as nota_minima,
+        max(avpt.valor_nota)                                     as nota_maxima,
+        sum(case when avpt.valor_nota = 1 then 1 else 0 end)     as qtd_nota_1,
+        sum(case when avpt.valor_nota = 2 then 1 else 0 end)     as qtd_nota_2,
+        sum(case when avpt.valor_nota = 3 then 1 else 0 end)     as qtd_nota_3,
+        sum(case when avpt.valor_nota = 4 then 1 else 0 end)     as qtd_nota_4,
+        sum(case when avpt.valor_nota = 5 then 1 else 0 end)     as qtd_nota_5
+    from avaliacoes_pt avpt
+    left join unidades un
+        on un.id = avpt.unidade_id
+    group by coalesce(un.sigla, 'N.I.'), coalesce(un.nome, 'N.I.')
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    total_avaliacoes_pt,
+    media_nota_pt,
+    nota_minima,
+    nota_maxima,
+    qtd_nota_1,
+    qtd_nota_2,
+    qtd_nota_3,
+    qtd_nota_4,
+    qtd_nota_5,
+    case
+        when media_nota_pt >= 4.5 then 'Excepcional'
+        when media_nota_pt >= 3.5 then 'Alto desempenho'
+        when media_nota_pt >= 2.5 then 'Adequado'
+        when media_nota_pt >= 1.5 then 'Inadequado'
+        else 'Nao executado'
+    end as faixa_desempenho
+from media_por_unidade
+order by media_nota_pt desc, unidade_sigla;
+
+
+-- =========================================================
+-- I10 - Indicador 10
+-- Percentual de avaliacoes inadequadas (nota 2)
+-- =========================================================
+--
+-- Regra utilizada:
+-- - denominador: total de avaliacoes de PT no periodo
+-- - numerador: avaliacoes com nota = 2 (Inadequado)
+-- - percentual: (numerador / denominador) x 100
+--
+-- Mesmo caminho de vinculo do I09:
+-- - avaliacoes -> planos_trabalhos_consolidacoes -> planos_trabalhos
+--
+-- Pre-requisito: confirmar que nota = 2 corresponde a 'Inadequado' no banco
+--
+-- Niveis de alerta:
+-- - >= 30%: Atencao critica
+-- - >= 15%: Atencao moderada
+-- - >=  5%: Observacao
+-- - <   5%: Baixa prevalencia
+
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0                  as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        av.id          as id_avaliacao,
+        pt.unidade_id,
+        tan.nota       as valor_nota
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+),
+proporcao_por_unidade as (
+    select
+        coalesce(un.sigla, 'N.I.')                                   as unidade_sigla,
+        coalesce(un.nome, 'N.I.')                                    as unidade_nome,
+        count(avpt.id_avaliacao)                                     as total_avaliacoes_pt,
+        sum(case when avpt.valor_nota = 2 then 1 else 0 end)         as qtd_inadequado,
+        round(
+            sum(case when avpt.valor_nota = 2 then 1 else 0 end)
+                / nullif(count(avpt.id_avaliacao), 0) * 100,
+            2
+        )                                                            as perc_inadequado
+    from avaliacoes_pt avpt
+    left join unidades un
+        on un.id = avpt.unidade_id
+    group by coalesce(un.sigla, 'N.I.'), coalesce(un.nome, 'N.I.')
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    total_avaliacoes_pt,
+    qtd_inadequado,
+    perc_inadequado,
+    case
+        when perc_inadequado >= 30 then 'Atencao critica'
+        when perc_inadequado >= 15 then 'Atencao moderada'
+        when perc_inadequado >= 5  then 'Observacao'
+        else 'Baixa prevalencia'
+    end as nivel_alerta
+from proporcao_por_unidade
+order by perc_inadequado desc, unidade_sigla;
+
+
+-- =========================================================
+-- I11 - Indicador 11
+-- Percentual de avaliacoes excepcionais (nota 5)
+-- =========================================================
+--
+-- Regra utilizada:
+-- - denominador: total de avaliacoes de PT no periodo
+-- - numerador: avaliacoes com nota = 5 (Excepcional)
+-- - percentual: (numerador / denominador) x 100
+--
+-- Mesmo caminho de vinculo do I09 e I10:
+-- - avaliacoes -> planos_trabalhos_consolidacoes -> planos_trabalhos
+--
+-- Pre-requisito: confirmar que nota = 5 corresponde a 'Excepcional' no banco
+--
+-- Leitura complementar com I10:
+-- - alta prevalencia de nota 5 + baixa de nota 2: distribuicao saudavel
+-- - alta prevalencia em ambos os extremos: bimodalidade - pode indicar sub-uso
+--   da escala intermediaria (notas 3 e 4 raramente usadas)
+--
+-- Niveis de reconhecimento:
+-- - >= 40%: Reconhecimento elevado
+-- - >= 20%: Desempenho diferenciado
+-- - >=  5%: Destaque pontual
+-- - <   5%: Escala subutilizada
+
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0                  as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        av.id          as id_avaliacao,
+        pt.unidade_id,
+        tan.nota       as valor_nota
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+),
+proporcao_por_unidade as (
+    select
+        coalesce(un.sigla, 'N.I.')                                   as unidade_sigla,
+        coalesce(un.nome, 'N.I.')                                    as unidade_nome,
+        count(avpt.id_avaliacao)                                     as total_avaliacoes_pt,
+        sum(case when avpt.valor_nota = 5 then 1 else 0 end)         as qtd_excepcional,
+        round(
+            sum(case when avpt.valor_nota = 5 then 1 else 0 end)
+                / nullif(count(avpt.id_avaliacao), 0) * 100,
+            2
+        )                                                            as perc_excepcional
+    from avaliacoes_pt avpt
+    left join unidades un
+        on un.id = avpt.unidade_id
+    group by coalesce(un.sigla, 'N.I.'), coalesce(un.nome, 'N.I.')
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    total_avaliacoes_pt,
+    qtd_excepcional,
+    perc_excepcional,
+    case
+        when perc_excepcional >= 40 then 'Reconhecimento elevado'
+        when perc_excepcional >= 20 then 'Desempenho diferenciado'
+        when perc_excepcional >= 5  then 'Destaque pontual'
+        else 'Escala subutilizada'
+    end as nivel_reconhecimento
+from proporcao_por_unidade
+order by perc_excepcional desc, unidade_sigla;
+
+
+-- =========================================================
+-- I12 - Indicador 12
+-- Coerencia entre avaliacao do PT e do PE
+-- =========================================================
+--
+-- Regra utilizada:
+-- - calcula a media das notas do PT e do PE separadamente por unidade
+-- - compara as duas medias: diferenca absoluta e direcional
+-- - classifica a coerencia em 3 faixas
+--
+-- Dois caminhos de vinculo paralelos (CTEs independentes):
+-- - PT: avaliacoes -> planos_trabalhos_consolidacoes -> planos_trabalhos
+-- - PE: avaliacoes -> planos_entregas (via plano_entrega_id)
+--
+-- Pre-requisito:
+-- - confirmar que avaliacoes.plano_trabalho_consolidacao_id esta populado (vinculo PT)
+-- - confirmar que avaliacoes.plano_entrega_id esta populado (vinculo PE)
+-- - uma unidade so aparece no resultado se tiver avaliacoes nos DOIS tipos (INNER JOIN)
+--
+-- Classificacao de coerencia:
+-- - diferenca <= 1.0: Coerente (variacao esperada)
+-- - diferenca <= 2.0: Divergencia moderada (merece investigacao)
+-- - diferenca >  2.0: Alta divergencia (sinal de desalinhamento sistematico)
+--
+-- Direcao da divergencia:
+-- - PT > PE: servidores avaliados melhor do que a entrega da unidade
+-- - PE > PT: entrega da unidade avaliada melhor do que os servidores individualmente
+
+with parametros as (
+    select
+        date('2025-01-01') as data_inicio,
+        date('2025-12-31') as data_fim,
+        0                  as incluir_excluidos
+),
+avaliacoes_pt as (
+    select
+        pt.unidade_id,
+        tan.nota       as valor_nota
+    from avaliacoes av
+    join planos_trabalhos_consolidacoes ptc
+        on ptc.id = av.plano_trabalho_consolidacao_id
+    join planos_trabalhos pt
+        on pt.id = ptc.plano_trabalho_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    cross join parametros p
+    where av.plano_trabalho_consolidacao_id is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(pt.data_inicio) <= p.data_fim
+      and date(pt.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pt.deleted_at is null)
+),
+avaliacoes_pe as (
+    select
+        pe.unidade_id,
+        tan.nota       as valor_nota
+    from avaliacoes av
+    join planos_entregas pe
+        on pe.id = av.plano_entrega_id
+    join tipos_avaliacoes_notas tan
+        on tan.id = av.tipo_avaliacao_nota_id
+    cross join parametros p
+    where av.plano_entrega_id is not null
+      and (p.incluir_excluidos = 1 or av.deleted_at is null)
+      and date(pe.data_inicio) <= p.data_fim
+      and date(pe.data_fim)   >= p.data_inicio
+      and (p.incluir_excluidos = 1 or pe.deleted_at is null)
+),
+media_pt_por_unidade as (
+    select
+        unidade_id,
+        count(*)                  as total_avaliacoes_pt,
+        round(avg(valor_nota), 2) as media_nota_pt
+    from avaliacoes_pt
+    group by unidade_id
+),
+media_pe_por_unidade as (
+    select
+        unidade_id,
+        count(*)                  as total_avaliacoes_pe,
+        round(avg(valor_nota), 2) as media_nota_pe
+    from avaliacoes_pe
+    group by unidade_id
+),
+coerencia as (
+    select
+        coalesce(un.sigla, 'N.I.')                           as unidade_sigla,
+        coalesce(un.nome, 'N.I.')                            as unidade_nome,
+        mpt.total_avaliacoes_pt,
+        mpt.media_nota_pt,
+        mpe.total_avaliacoes_pe,
+        mpe.media_nota_pe,
+        round(abs(mpt.media_nota_pt - mpe.media_nota_pe), 2) as diferenca_absoluta,
+        round(mpt.media_nota_pt - mpe.media_nota_pe, 2)      as diferenca_direcional
+    from media_pt_por_unidade mpt
+    join media_pe_por_unidade mpe
+        on mpe.unidade_id = mpt.unidade_id
+    left join unidades un
+        on un.id = mpt.unidade_id
+)
+select
+    unidade_sigla,
+    unidade_nome,
+    total_avaliacoes_pt,
+    media_nota_pt,
+    total_avaliacoes_pe,
+    media_nota_pe,
+    diferenca_absoluta,
+    diferenca_direcional,
+    case
+        when diferenca_absoluta <= 1.0 then 'Coerente'
+        when diferenca_absoluta <= 2.0 then 'Divergencia moderada'
+        else 'Alta divergencia'
+    end as classificacao_coerencia,
+    case
+        when diferenca_direcional > 0 then 'PT > PE'
+        when diferenca_direcional < 0 then 'PE > PT'
+        else 'Sem diferenca'
+    end as direcao_divergencia
+from coerencia
+order by diferenca_absoluta desc, unidade_sigla;
