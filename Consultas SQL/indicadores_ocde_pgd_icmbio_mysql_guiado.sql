@@ -178,8 +178,9 @@ with parametros as (
 ),
 universo_bruto as (
     select
-        u.sigla  as unidade_sigla,
-        count(*) as total_cadastradas
+        u.sigla          as unidade_sigla,
+        min(u.nome)      as unidade_nome,
+        count(*)         as total_cadastradas
     from planos_entregas pe
     join planos_entregas_entregas pee
         on pee.plano_entrega_id = pe.id
@@ -195,6 +196,7 @@ universo_bruto as (
 entregas_ciclo as (
     select
         u.sigla                              as unidade_sigla,
+        u.nome                               as unidade_nome,
         pee.id                               as id_entrega,
         pee.progresso_esperado               as meta_planejada,
         coalesce(pee.progresso_realizado, 0) as meta_executada,
@@ -218,6 +220,7 @@ entregas_ciclo as (
 resumo as (
     select
         unidade_sigla,
+        min(unidade_nome)                                                 as unidade_nome,
         count(*)                                                          as total_no_ciclo,
         sum(vence_no_periodo)                                             as total_vence_no_periodo,
         sum(case when meta_executada >= meta_planejada then 1 else 0 end) as total_concluidas,
@@ -231,6 +234,7 @@ resumo as (
 )
 select
     r.unidade_sigla,
+    r.unidade_nome,
     b.total_cadastradas,
     r.total_no_ciclo,
     r.total_vence_no_periodo,
@@ -279,15 +283,16 @@ with parametros as (
 ),
 entregas_base as (
     select
-        u.sigla                              as unidade_sigla,
-        pee.id                               as id_entrega,
+        u.sigla                                                    as unidade_sigla,
+        pee.id                                                     as id_entrega,
         coalesce(
             nullif(trim(pee.descricao), ''),
             nullif(trim(pee.descricao_entrega), ''),
             'N.I.'
-        )                                    as nome_entrega,
-        pee.progresso_esperado               as meta_planejada,
-        coalesce(pee.progresso_realizado, 0) as meta_executada
+        )                                                          as nome_entrega,
+        coalesce(nullif(trim(pee.descricao_entrega), ''), 'N.I.') as descricao_entrega,
+        pee.progresso_esperado                                     as meta_planejada,
+        coalesce(pee.progresso_realizado, 0)                       as meta_executada
     from planos_entregas pe
     join planos_entregas_entregas pee
         on pee.plano_entrega_id = pe.id
@@ -305,18 +310,20 @@ entregas_com_taxa as (
         unidade_sigla,
         id_entrega,
         nome_entrega,
+        descricao_entrega,
         meta_planejada,
         meta_executada,
         round(
             meta_executada / nullif(meta_planejada, 0) * 100,
             2
-        )                                    as taxa_atingimento_perc
+        )                                                          as taxa_atingimento_perc
     from entregas_base
 )
 select
     unidade_sigla,
     id_entrega,
     nome_entrega,
+    descricao_entrega,
     meta_planejada,
     meta_executada,
     taxa_atingimento_perc,
@@ -363,6 +370,7 @@ with parametros as (
 entregas_ciclo as (
     select
         u.sigla                                      as unidade_sigla,
+        u.nome                                       as unidade_nome,
         pee.id                                       as id_entrega,
         abs(coalesce(pee.progresso_realizado, 0))
             / nullif(abs(pee.progresso_esperado), 0) as proporcao_atingimento
@@ -382,6 +390,7 @@ entregas_ciclo as (
 resumo as (
     select
         unidade_sigla,
+        min(unidade_nome)                          as unidade_nome,
         count(id_entrega)                          as total_no_ciclo,
         round(avg(proporcao_atingimento) * 100, 2) as score_atingimento_perc
     from entregas_ciclo
@@ -389,6 +398,7 @@ resumo as (
 )
 select
     unidade_sigla,
+    unidade_nome,
     total_no_ciclo,
     score_atingimento_perc,
     case
