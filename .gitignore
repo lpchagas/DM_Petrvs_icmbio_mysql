@@ -16,6 +16,7 @@ CLAUDE.md
 
 # VS Code
 .vscode/settings.local.json
+*.code-workspace
 
 # Windows
 Thumbs.db
