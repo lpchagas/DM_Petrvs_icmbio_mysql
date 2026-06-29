@@ -14,5 +14,19 @@
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
         }
-    ]
+    ],
+    "terminal.integrated.defaultProfile.windows": "Windows PowerShell",
+    "terminal.integrated.profiles.windows": {
+        "Windows PowerShell": {
+            "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+        },
+        "PowerShell 7 (Store)": {
+            "path": "C:\\Users\\leand\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+        }
+    },
+    "powershell.powerShellAdditionalExePaths": {
+        "Windows PowerShell (x64)": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+    },
+    "powershell.powerShellDefaultVersion": "Windows PowerShell (x64)",
+    "chatgpt.runCodexInWindowsSubsystemForLinux": true
 }

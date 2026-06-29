@@ -18,12 +18,15 @@
 # -----------------------------------------------------------------------------
 CLAUDE.md
 AGENTS.md
+.claude
 .claude/
+.codex
 .codex/
 
 # -----------------------------------------------------------------------------
 # Antigravity Desktop — agentes e metadados do projeto (uso local)
 # -----------------------------------------------------------------------------
+.agents
 .agents/
 PROJECT.md
 
@@ -31,6 +34,7 @@ PROJECT.md
 # Skills locais (desenvolvimento interno — não sincronizar com GitHub)
 # -----------------------------------------------------------------------------
 .github/skills/
+instalar_skill_*.ps1
 
 # -----------------------------------------------------------------------------
 # Dumps do banco PETRVS (nunca versionar — arquivo > 4 GB com dados pessoais)
@@ -53,6 +57,7 @@ dump/
 #     backup_scripts_a1/         ← Cópias de segurança dos scripts A1
 # -----------------------------------------------------------------------------
 artefatos_local/
+artefatos_local
 
 # -----------------------------------------------------------------------------
 # Pastas legadas (migradas para artefatos_local/ em 17.06.2026 — mantidas aqui
@@ -127,12 +132,14 @@ plano_estrutura_projeto.md
 # docs/cgov/ permanece público (apenas README placeholder sem análises).
 # -----------------------------------------------------------------------------
 /cgov/
+/cgov
 
 # -----------------------------------------------------------------------------
 # Scripts de configuração de ambiente local (contêm caminhos e lógica locais)
 # Acessados via Junction apontando para o OneDrive.
 # -----------------------------------------------------------------------------
 /setup/
+/setup
 
 # -----------------------------------------------------------------------------
 # Pasta aninhada criada em sessão anterior (pode ser deletada manualmente)
