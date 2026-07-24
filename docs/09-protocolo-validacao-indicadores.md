@@ -21,16 +21,16 @@ Cada ciclo produz até cinco artefatos. O padrão de nomenclatura é `IND_XX.N_<
 | # | Artefato | Nomenclatura padrão | Pasta |
 |---|---|---|---|
 | A1 | Script de geração (sanitizado) | `IND_XX.1_run.py` | `ocde/indicadores/` |
-| A2 | Tabela de resultado (CSV) | `IND_XX.2_<nome>_AAAAMMDD_HHMM.csv` | `artefatos_local/entregas/YYYY-MM/` |
+| A2 | Tabela de resultado (CSV) | `IND_XX.2_<nome>_AAAAMMDD_HHMM.csv` | `artefatos_local/ocde/entregas/YYYY-MM/` |
 | A3 | Consulta manual PETRVS (PDF) | `IND_XX.3_PETRVS_consulta_DD.MM.AAAA.pdf` | `artefatos_local/validacao/` |
-| A4 | Script diagnóstico | `IND_XX.4_diagnostico_DD.MM.AAAA.py` | `artefatos_local/diagnosticos/` |
+| A4 | Script diagnóstico | `IND_XX.4_diagnostico_DD.MM.AAAA.py` | `artefatos_local/ocde/diagnosticos/` |
 | A5 | Relatório de validação | `IND_XX.5_relatorio_validacao_DD.MM.AAAA.md` | `artefatos_local/validacao/` |
 
 **Notas:**
 
 - **A1 — script canônico:** armazenado em `ocde/indicadores/` (público, sem credenciais — lê conexão do `.env`). Cópias de backup local em `artefatos_local/backup_scripts_a1/`.
 - **A2 — múltiplas versões:** quando o indicador produz mais de uma tabela (ex: visão resumida + detalhada), usar prefixo `v1_`, `v2_` antes da descrição: `IND_XX.2_v1_<nome>_AAAAMMDD_HHMM.csv`.
-- **A4 — CSVs intermediários:** gerados pelo script A4 e salvos em `artefatos_local/diagnosticos/YYYY-MM/` com padrão `IND_XX.4_qN_<descricao>.csv`.
+- **A4 — CSVs intermediários:** gerados pelo script A4 e salvos em `artefatos_local/ocde/diagnosticos/YYYY-MM/` com padrão `IND_XX.4_qN_<descricao>.csv`.
 - **Todos os artefatos em `artefatos_local/` são mantidos apenas localmente** — a pasta está no `.gitignore`. Contêm dados operacionais do ICMBio e registros internos da CGOV.
 
 ---
@@ -55,7 +55,7 @@ Geração        →   Validação manual  →   Diagnóstico técnico   →   C
    - Nenhuma coluna retornou apenas nulos
    - Valores extremos (taxas > 500%, zeros em massa) foram identificados
    - As 6 colunas de metadado de período estão presentes e corretas
-4. O script salva automaticamente `IND_XX.2_<nome>_AAAAMMDD_HHMM.csv` em `artefatos_local/entregas/YYYY-MM/`.
+4. O script salva automaticamente `IND_XX.2_<nome>_AAAAMMDD_HHMM.csv` em `artefatos_local/ocde/entregas/YYYY-MM/`.
 5. Encaminhar o CSV à equipe CGOV com o período de referência e sugestão de unidades para amostragem.
 
 **Critério de conclusão:** CSV gerado, verificado e entregue. Número de linhas registrado no CLAUDE.md (Seção 11).
@@ -84,8 +84,8 @@ Geração        →   Validação manual  →   Diagnóstico técnico   →   C
 **Responsável:** analista técnico
 
 1. Ler o A3 (consulta manual) e identificar cada hipótese formulada pela equipe.
-2. Para cada hipótese, criar uma query diagnóstica em `IND_XX.4_diagnostico_DD.MM.AAAA.py` (ver template Seção 4.2) que a responda com evidência direta do Denodo. Salvar o script em `artefatos_local/diagnosticos/`.
-3. Executar todas as queries e salvar os CSVs diagnósticos em `artefatos_local/diagnosticos/YYYY-MM/` como `IND_XX.4_qN_<descricao>.csv`.
+2. Para cada hipótese, criar uma query diagnóstica em `IND_XX.4_diagnostico_DD.MM.AAAA.py` (ver template Seção 4.2) que a responda com evidência direta do Denodo. Salvar o script em `artefatos_local/ocde/diagnosticos/`.
+3. Executar todas as queries e salvar os CSVs diagnósticos em `artefatos_local/ocde/diagnosticos/YYYY-MM/` como `IND_XX.4_qN_<descricao>.csv`.
 4. **Classificar cada hipótese** em uma das categorias:
 
 | Categoria | Descrição | Ação |
@@ -206,8 +206,8 @@ Hipóteses investigadas:
   H2: [segunda hipótese]
   ...
 
-Script salvo em: artefatos_local/diagnosticos/
-CSVs diagnósticos em: artefatos_local/diagnosticos/YYYY-MM/
+Script salvo em: artefatos_local/ocde/diagnosticos/
+CSVs diagnósticos em: artefatos_local/ocde/diagnosticos/YYYY-MM/
 """
 import csv, os, re, sys
 from datetime import datetime
@@ -218,7 +218,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from scripts.lib.denodo_config import get_connection_params
 JAR, JVM_DLL, JDBC_URL, USER, PASS = get_connection_params()
 
-OUT_DIR   = r"artefatos_local\diagnosticos\YYYY-MM"
+OUT_DIR   = r"artefatos_local\ocde\diagnosticos\YYYY-MM"
 DIAG_DATE = datetime.now().strftime("%d.%m.%Y")
 
 
@@ -330,10 +330,10 @@ O arquivo `IND_XX.5_relatorio_validacao_DD.MM.AAAA.md` deve seguir esta estrutur
 | Artefato | Arquivo | Local |
 |---|---|---|
 | A1 | IND_XX.1_run.py | ocde/indicadores/ |
-| A2 | IND_XX.2_<nome>_AAAAMMDD_HHMM.csv | artefatos_local/entregas/YYYY-MM/ |
+| A2 | IND_XX.2_<nome>_AAAAMMDD_HHMM.csv | artefatos_local/ocde/entregas/YYYY-MM/ |
 | A3 | IND_XX.3_PETRVS_consulta_DD.MM.AAAA.pdf | artefatos_local/validacao/ |
-| A4 | IND_XX.4_diagnostico_DD.MM.AAAA.py | artefatos_local/diagnosticos/ |
-| A4 CSVs | IND_XX.4_qN_<descricao>.csv | artefatos_local/diagnosticos/YYYY-MM/ |
+| A4 | IND_XX.4_diagnostico_DD.MM.AAAA.py | artefatos_local/ocde/diagnosticos/ |
+| A4 CSVs | IND_XX.4_qN_<descricao>.csv | artefatos_local/ocde/diagnosticos/YYYY-MM/ |
 | A5 | IND_XX.5_relatorio_validacao_DD.MM.AAAA.md | artefatos_local/validacao/ |
 ```
 
@@ -584,7 +584,7 @@ Data início: DD/MM/AAAA
 
 ─── Fase 1 — Geração ────────────────────────────────────────────
 [ ] A1 — IND_XX.1_run.py criado em ocde/indicadores/ e executado sem erros
-[ ] A2 — IND_XX.2_<nome>_AAAAMMDD_HHMM.csv gerado em artefatos_local/entregas/YYYY-MM/
+[ ] A2 — IND_XX.2_<nome>_AAAAMMDD_HHMM.csv gerado em artefatos_local/ocde/entregas/YYYY-MM/
 [ ] 6 colunas de metadado de período presentes (ciclo_tipo, periodo, ...)
 [ ] Verificação inicial: sem zeros em massa, sem NULLs inesperados, nenhum período vazio
 [ ] CSV encaminhado à equipe CGOV com instruções de amostragem
@@ -601,8 +601,8 @@ Data início: DD/MM/AAAA
 [ ] QD-05 executada — anomalia de escala verificada e documentada
 [ ] QD-06 executada — estrutura JSON inspecionada (se aplicável)
 [ ] QD-07 executada — tipificação de meta contabilizada (se aplicável)
-[ ] A4 — IND_XX.4_diagnostico_DD.MM.AAAA.py criado em artefatos_local/diagnosticos/
-[ ] CSVs diagnósticos em artefatos_local/diagnosticos/YYYY-MM/
+[ ] A4 — IND_XX.4_diagnostico_DD.MM.AAAA.py criado em artefatos_local/ocde/diagnosticos/
+[ ] CSVs diagnósticos em artefatos_local/ocde/diagnosticos/YYYY-MM/
 [ ] A5 — IND_XX.5_relatorio_validacao_DD.MM.AAAA.md elaborado em artefatos_local/validacao/
 [ ] Hipóteses classificadas: bug / semântica / metodologia / anomalia / sem divergência
 

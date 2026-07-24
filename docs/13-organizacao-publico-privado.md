@@ -55,8 +55,9 @@ Tudo aqui é **local e sincronizado via nuvem**. Nunca vai para o GitHub.
 ```
 C:\Users\<SEU_USUARIO>\OneDrive - ICMBio\projetos\pgd-ocde-icmbio-privado\
 ├── artefatos_local/
-│   ├── entregas/YYYY-MM/         CSVs mensais para entrega à COCAGE/Power BI
-│   ├── diagnosticos/YYYY-MM/     Scripts A4 e CSVs de diagnóstico interno
+│   ├── ocde/
+│   │   ├── entregas/YYYY-MM/     CSVs mensais para entrega à COCAGE/Power BI
+│   │   └── diagnosticos/YYYY-MM/ Scripts A4 e CSVs de diagnóstico interno
 │   ├── validacao/                Relatórios A5 e PDFs de consulta A3
 │   ├── docs_internos/            Documentação local não publicável
 │   ├── historico/                Artefatos de fases anteriores
@@ -179,7 +180,7 @@ Os scripts Python leem **todos** os caminhos do arquivo `.env`, então não há 
 | Documentação (`docs/`) | Sim | Git (`git pull`) |
 | Análises CGOV (`cgov/`) | Sim | OneDrive (automático) |
 | Scripts de setup (`setup/`) | Sim | OneDrive (automático) |
-| CSVs mensais (`artefatos_local/entregas/`) | Sim | OneDrive (automático) |
+| CSVs mensais (`artefatos_local/ocde/entregas/`) | Sim | OneDrive (automático) |
 | Diagnósticos e relatórios | Sim | OneDrive (automático) |
 | Contexto dos assistentes de IA | Sim | OneDrive (automático) |
 | `.env` com credenciais | **Não** | Cada máquina tem o seu próprio |

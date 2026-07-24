@@ -199,13 +199,13 @@ if ($erros.Count -eq 0) {
     Write-Host "CONCLUÍDO COM ERROS nos seguintes indicadores:" -ForegroundColor Yellow
     $erros | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
 }
-Write-Host "Arquivos salvos em: artefatos_local\entregas\$(Get-Date -Format 'yyyy-MM')" -ForegroundColor Green
+Write-Host "Arquivos salvos em: artefatos_local\ocde\entregas\$(Get-Date -Format 'yyyy-MM')" -ForegroundColor Green
 ```
 
 Quando terminar, os CSVs estarão em:
 
 ```
-artefatos_local\entregas\2026-06\
+artefatos_local\ocde\entregas\2026-06\
 ```
 
 (a pasta muda automaticamente para o mês corrente — ex: `2026-07` em julho)
@@ -279,7 +279,7 @@ Depois execute o indicador desejado:
 | **I11** | `python ocde/indicadores/IND_11.1_run.py` | % das avaliações com nota "Excepcional" por unidade |
 | **I12** | `python ocde/indicadores/IND_12.1_run.py` | Se a avaliação individual (PT) está alinhada com a avaliação coletiva (PE) da unidade |
 
-Os CSVs são salvos em `artefatos_local/entregas/AAAA-MM/`.
+Os CSVs são salvos em `artefatos_local/ocde/entregas/AAAA-MM/`.
 
 ---
 
@@ -293,7 +293,7 @@ o arquivo.
 
 1. Abra o Excel.
 2. Menu **Dados** → **Obter Dados** → **De Arquivo** → **De Texto/CSV**.
-3. Navegue até `artefatos_local\entregas\AAAA-MM\`.
+3. Navegue até `artefatos_local\ocde\entregas\AAAA-MM\`.
 4. Selecione o arquivo desejado.
 5. Na janela de importação, altere o **Delimitador** para **Personalizado** e
    digite `|` (pipe).
@@ -340,17 +340,18 @@ ocde/indicadores/          executores IND_XX.1_run.py
 lib/                  funções comuns sem credenciais
 ```
 
-Arquivos locais, **nunca versionados** (estrutura vigente desde 17.06.2026):
+Arquivos locais, **nunca versionados** (caminhos gerenciados por `lib/csv_utils.py`):
 
 ```text
 artefatos_local/
-  entregas/
-    AAAA-MM/              CSVs de indicadores prontos para envio à COCAGE/Power BI
+  ocde/
+    entregas/
+      AAAA-MM/            CSVs de indicadores prontos para envio à COCAGE/Power BI
                           IND_XX.2_<nome>_AAAAMMDD_HHMM.csv (todos os 12 indicadores)
-  diagnosticos/
-    AAAA-MM/              CSVs diagnósticos A4 (uso interno — não enviar)
+    diagnosticos/
+      AAAA-MM/            CSVs diagnósticos A4 (uso interno — não enviar)
                           IND_XX.4_qN_<descricao>.csv
-    IND_XX.4_diagnostico_DD.MM.AAAA.py
+      IND_XX.4_diagnostico_DD.MM.AAAA.py
   validacao/              Relatórios A5 e PDFs A3
                           IND_XX.5_relatorio_validacao_DD.MM.AAAA.md
                           IND_XX.3_PETRVS_consulta_DD.MM.AAAA.pdf
@@ -361,8 +362,8 @@ artefatos_local/
 
 Os caminhos são gerenciados por `lib/csv_utils.py`:
 
-- `indicator_csv_dir()` → `artefatos_local/entregas/AAAA-MM/`
-- `diagnostic_csv_dir()` → `artefatos_local/diagnosticos/AAAA-MM/`
+- `indicator_csv_dir()` → `artefatos_local/ocde/entregas/AAAA-MM/`
+- `diagnostic_csv_dir()` → `artefatos_local/ocde/diagnosticos/AAAA-MM/`
 
 ---
 
@@ -532,7 +533,7 @@ tabela precisam do prefixo petrvs_icmbio_ no JDBC.
 
 **Verificar se um CSV foi gerado corretamente:**
 ```
-Analise o arquivo artefatos_local/entregas/AAAA-MM/IND_XX.2_*.csv e verifique:
+Analise o arquivo artefatos_local/ocde/entregas/AAAA-MM/IND_XX.2_*.csv e verifique:
 1. Quantas linhas foram geradas por período (T1-2025 a Q2-2026)?
 2. Há linhas com campos vazios no campo unidade_sigla?
 3. Os valores numéricos estão dentro dos intervalos esperados (percentuais entre 0 e 100)?
@@ -541,7 +542,7 @@ Analise o arquivo artefatos_local/entregas/AAAA-MM/IND_XX.2_*.csv e verifique:
 
 **Gerar relatório de qualidade dos dados:**
 ```
-Leia todos os CSVs gerados em artefatos_local/entregas/AAAA-MM/ e produza um relatório
+Leia todos os CSVs gerados em artefatos_local/ocde/entregas/AAAA-MM/ e produza um relatório
 resumido de qualidade com: total de linhas por indicador, períodos que retornaram 0 linhas,
 unidades que aparecem em todos os indicadores e unidades com dados ausentes em algum indicador.
 ```
@@ -566,7 +567,7 @@ Explique o que significa e sugira como corrigir considerando que o banco é Deno
 **Gerar um script de verificação rápida:**
 ```
 @workspace Baseando-se nos scripts em ocde/indicadores/ e em lib/, crie um script
-Python chamado verificar_csvs.py que: (1) liste todos os CSVs em artefatos_local/entregas/[mês
+Python chamado verificar_csvs.py que: (1) liste todos os CSVs em artefatos_local/ocde/entregas/[mês
 atual]/; (2) para cada CSV, mostre nome, número de linhas e colunas; (3) alerte se algum CSV
 tiver 0 linhas. Use delimitador pipe (|) e encoding utf-8-sig.
 ```
@@ -602,8 +603,8 @@ Quando houver validação pela equipe CGOV:
 
 - salve PDFs de consulta PETRVS em `artefatos_local/validacao/`
 - copie `ocde/diagnosticos/IND_XX.4_diagnostico_template.py` para
-  `artefatos_local/diagnosticos/` e preencha as queries locais
-- salve CSVs diagnósticos em `artefatos_local/diagnosticos/AAAA-MM/`
+  `artefatos_local/ocde/diagnosticos/` e preencha as queries locais
+- salve CSVs diagnósticos em `artefatos_local/ocde/diagnosticos/AAAA-MM/`
 - salve relatórios internos em `artefatos_local/validacao/`
 
 Esses arquivos podem conter dados operacionais e não devem ser publicados.

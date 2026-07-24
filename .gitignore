@@ -47,10 +47,11 @@ dump/
 
 # -----------------------------------------------------------------------------
 # Artefatos locais — CSVs mensais, diagnósticos, validações, backup de scripts
-# Estrutura atual (reestruturada em 17.06.2026):
+# Estrutura atual (caminhos gerenciados por lib/csv_utils.py):
 #   artefatos_local/
-#     entregas/YYYY-MM/          ← CSVs mensais para entrega à COCAGE/Power BI
-#     diagnosticos/YYYY-MM/      ← Scripts A4 e CSVs diagnósticos (uso interno)
+#     ocde/
+#       entregas/YYYY-MM/        ← CSVs mensais para entrega à COCAGE/Power BI
+#       diagnosticos/YYYY-MM/    ← Scripts A4 e CSVs diagnósticos (uso interno)
 #     validacao/                 ← Relatórios A5 (.md) e PDFs de consulta A3
 #     docs_internos/             ← Documentação local não publicável
 #     historico/                 ← Artefatos legados (dump mai-2026, denodo mai-2026)
