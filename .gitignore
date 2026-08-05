@@ -74,6 +74,9 @@ Testes PETRVS/
 *.xlsx
 *.xls
 
+# Exceção: fixtures sintéticas de teste (sem dados reais, versionadas propositalmente)
+!tests/fixtures/**/*.csv
+
 # -----------------------------------------------------------------------------
 # Apresentações e PDFs (podem conter dados operacionais sensíveis)
 # -----------------------------------------------------------------------------

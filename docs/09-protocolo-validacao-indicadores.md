@@ -77,6 +77,19 @@ Geração        →   Validação manual  →   Diagnóstico técnico   →   C
 
 **Critério de conclusão:** A3 salvo em `artefatos_local/validacao/` e hipóteses definidas.
 
+**Template recomendado:** `docs/templates/A3_checklist_validacao_cgov.md` — formaliza tanto a
+consulta documentada quanto a confirmação verbal (padrão já em uso em CLAUDE.md §11 como
+"✅ verbal"), garantindo que sempre exista um artefato físico rastreável, mesmo quando a
+validação é informal.
+
+**Regra de rastreabilidade (25.08.2026):** um indicador só pode ser marcado ✅ (aprovado /
+aprovado condicional) na tabela de status de CLAUDE.md §11 se o arquivo
+`artefatos_local/validacao/IND_XX.5_relatorio_validacao_*.md` correspondente existir
+fisicamente. Aprovação registrada apenas como texto solto, sem o A5 físico, não conta — essa
+regra existe porque uma auditoria (agosto/2026) encontrou vários indicadores marcados como
+validados sem nenhum A5 salvo. `tests/regression/test_claude_md_consistency.py` verifica essa
+regra automaticamente.
+
 ---
 
 ### Fase 3 — Diagnóstico técnico e relatório
