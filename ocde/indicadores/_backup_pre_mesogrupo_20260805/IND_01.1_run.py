@@ -40,7 +40,6 @@ sys.path.insert(0, str(ROOT))
 
 from lib.csv_utils import indicator_csv_dir, write_pipe_csv
 from lib.denodo_config import connect, get_config
-from lib.estrutura_organizacional import insert_mesogrupo_column, load_mesogrupo_lookup
 from lib.monthly_runner import query_rows
 from lib.periodos import build_periods_pt, period_metadata
 
@@ -205,10 +204,6 @@ def main() -> None:
     if not v1_rows:
         print("Nenhum dado retornado. CSVs nao gerados.")
         return
-
-    # mesogrupo aplica-se apenas ao v2 (visao por unidade) — v1 nao tem coluna de unidade.
-    lookup = load_mesogrupo_lookup()
-    v2_cols, v2_rows = insert_mesogrupo_column(v2_cols, v2_rows, lookup)
 
     write_pipe_csv(output_v1, v1_cols, v1_rows)
     write_pipe_csv(output_v2, v2_cols, v2_rows)

@@ -1,34 +1,29 @@
-"""IND_08.1_run.py — I08: Proporção de Horas por Entrega — Planejadas (%).
+"""IND_07.1_run.py — I07: Horas por Entrega — Planejadas (Absolutas).
 
 Instrumento: misto PT + PE — ciclo alinhado ao Plano de Entregas (PE).
 Periodicidade: 2025 trimestral (T3–T4) | 2026+ quadrimestral (Q1–Q3). Base: 01/07/2025.
 
-Calcula qual percentual da capacidade total planejada de cada unidade foi
-alocado a cada entrega, normalizando o valor absoluto do I07 pelo total de
-horas disponíveis na unidade. Responde: "Qual o peso relativo de cada entrega
-no esforço total planejado da unidade?"
+Calcula o total de horas planejadas alocadas a cada entrega do PE, somando
+a contribuição proporcional de todos os servidores cujos PTs se sobrepõem
+ao período e que têm a entrega vinculada.
 
-Fórmula:
-  proporcao_horas_perc = horas_planejadas_entrega
-                         / total_horas_disponiveis_unidade × 100
+Abordagem técnica Denodo/JDBC (sem WITH RECURSIVE):
+  horas_alocadas = carga_horaria_horas
+                   × (overlap_dias / total_dias_plano)
+                   × (forca_trabalho / 100)
 
-  onde total_horas_disponiveis_unidade = soma de horas proporcionais de todos
-  os PTs ativos da unidade no período (denominador = capacidade total declarada).
+  onde overlap_dias = dias de sobreposição entre o PT e o período consultado.
+  Quando forma_contagem_carga_horaria = 'DIAS', multiplica por 8 para converter.
 
-Abordagem técnica Denodo/JDBC (compatível — sem WITH RECURSIVE):
-  Mesma aritmética proporcional do I07 + bloco capacidade_unidade extra.
-  Tabelas sem prefixo no DBeaver; com prefixo petrvs_icmbio_ via JDBC.
+Correções aplicadas em 14.06.2026 (documentadas no CLAUDE.md):
+  1. Unidade: era pt.unidade_id (servidor). Corrigido para pe.unidade_id (dono
+     da entrega via COALESCE com fallback para ph.unidade_id). Isso atribui cada
+     entrega à unidade que planejou o PE, não à unidade do executor.
+  2. Filtro temporal do PE: faltava no CTE linhas. Sem ele, entregas de PEs de
+     ciclos anteriores reapareciam em cada período (1.700 duplicatas detectadas).
+     Corrigido com CROSS JOIN parametros + WHERE pe.data_inicio/fim no CTE linhas.
 
-Correções aplicadas (alinhadas ao I07 — 14.06.2026):
-  1. Unidade: COALESCE(pe.unidade_id, ph.unidade_id) atribui entrega à unidade
-     do PE (planejador), com fallback para unidade do PT (executor).
-  2. Filtro temporal do PE: adicionado em linhas para eliminar entregas de PEs
-     fora do período consultado (elimina duplicatas entre períodos).
-  3. Prefixos petrvs_icmbio_: adicionados a todas as tabelas físicas para
-     compatibilidade JDBC (a doc original seção 2 usava formato DBeaver sem prefix).
-
-Nota: proporcao_horas_perc pode superar 100% se forca_trabalho > 100% em algum
-vínculo — indicador de dado inválido no PETRVS, detectado pelo aviso de qualidade.
+Resultado do run corrigido (14.06.2026): 18.461 linhas, zero duplicatas.
 """
 from __future__ import annotations
 
@@ -41,11 +36,10 @@ sys.path.insert(0, str(ROOT))
 
 from lib.csv_utils import indicator_csv_dir, write_pipe_csv
 from lib.denodo_config import connect, get_config
-from lib.estrutura_organizacional import insert_mesogrupo_column, load_mesogrupo_lookup
 from lib.monthly_runner import query_rows
 from lib.periodos import build_periods_pe, period_metadata
 
-SQL_I08 = """
+SQL_I07 = """
 WITH parametros AS (
     SELECT
         CAST('{ini}' AS DATE) AS data_inicio,
@@ -91,13 +85,6 @@ vinculos_ativos AS (
     WHERE pte.plano_entrega_entrega_id IS NOT NULL
       AND pte.deleted_at IS NULL
 ),
-capacidade_unidade AS (
-    SELECT
-        ph.unidade_id,
-        SUM(ph.horas_proporcionais) AS total_horas_disponiveis_unidade
-    FROM planos_horas ph
-    GROUP BY ph.unidade_id
-),
 linhas AS (
     SELECT
         COALESCE(un.sigla, 'N.I.') AS unidade_sigla,
@@ -108,8 +95,11 @@ linhas AS (
             NULLIF(TRIM(COALESCE(pee.descricao_entrega, '')), ''),
             'N.I.'
         )                          AS nome_entrega,
-        ph.horas_proporcionais * (va.forca_trabalho / 100.0) AS horas_servidor,
-        cu.total_horas_disponiveis_unidade
+        pe.id                      AS id_plano_entrega,
+        CAST(pe.data_inicio AS DATE) AS inicio_vigencia_plano_entrega,
+        CAST(pe.data_fim    AS DATE) AS fim_vigencia_plano_entrega,
+        ph.plano_trabalho_id,
+        ph.horas_proporcionais * (va.forca_trabalho / 100.0) AS horas_servidor
     FROM vinculos_ativos va
     JOIN planos_horas ph
         ON ph.plano_trabalho_id = va.plano_trabalho_id
@@ -121,8 +111,6 @@ linhas AS (
        AND pe.deleted_at IS NULL
     LEFT JOIN petrvs_icmbio_unidades un
         ON un.id = COALESCE(pe.unidade_id, ph.unidade_id)
-    LEFT JOIN capacidade_unidade cu
-        ON cu.unidade_id = COALESCE(pe.unidade_id, ph.unidade_id)
     CROSS JOIN parametros p
     WHERE pe.id IS NOT NULL
       AND CAST(pe.data_inicio AS DATE) <= p.data_fim
@@ -133,17 +121,16 @@ SELECT
     unidade_nome,
     id_entrega,
     nome_entrega,
-    ROUND(SUM(horas_servidor), 2)                                AS horas_planejadas_entrega,
-    ROUND(MAX(total_horas_disponiveis_unidade), 2)               AS total_horas_disponiveis_unidade,
-    ROUND(
-        SUM(horas_servidor)
-        / NULLIF(MAX(total_horas_disponiveis_unidade), 0) * 100,
-        2
-    )                                                            AS proporcao_horas_perc
+    id_plano_entrega,
+    inicio_vigencia_plano_entrega,
+    fim_vigencia_plano_entrega,
+    ROUND(SUM(horas_servidor), 2)     AS total_horas_planejadas_entrega,
+    COUNT(DISTINCT plano_trabalho_id) AS num_servidores_alocados
 FROM linhas
 GROUP BY
-    unidade_sigla, unidade_nome, id_entrega, nome_entrega
-ORDER BY unidade_sigla, proporcao_horas_perc DESC
+    unidade_sigla, unidade_nome, id_entrega, nome_entrega,
+    id_plano_entrega, inicio_vigencia_plano_entrega, fim_vigencia_plano_entrega
+ORDER BY unidade_sigla, total_horas_planejadas_entrega DESC
 """
 
 
@@ -152,7 +139,7 @@ def main() -> None:
     conn = connect(config)
     out_dir = indicator_csv_dir()
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
-    output = out_dir / f"IND_08.2_proporcao_horas_entrega_{stamp}.csv"
+    output = out_dir / f"IND_07.2_horas_por_entrega_{stamp}.csv"
 
     periods = build_periods_pe()
     meta_cols = period_metadata()
@@ -161,8 +148,8 @@ def main() -> None:
 
     try:
         for label, kind, start, end, status in periods:
-            sql = SQL_I08.replace("{ini}", str(start)).replace("{fim}", str(end))
-            print(f"Executando I08 {label} ({start} a {end})...")
+            sql = SQL_I07.replace("{ini}", str(start)).replace("{fim}", str(end))
+            print(f"Executando I07 {label} ({start} a {end})...")
             try:
                 columns, rows = query_rows(conn, sql)
             except Exception as exc:
@@ -181,31 +168,23 @@ def main() -> None:
         print("Nenhum dado retornado. CSV nao gerado.")
         return
 
-    # mesogrupo so entra no CSV escrito — all_cols/all_rows seguem com as
-    # posicoes originais para nao quebrar os offsets fixos usados abaixo.
-    lookup = load_mesogrupo_lookup()
-    csv_cols, csv_rows = insert_mesogrupo_column(all_cols or [], all_rows, lookup)
-
-    write_pipe_csv(output, csv_cols, csv_rows)
+    write_pipe_csv(output, all_cols or [], all_rows)
     print(f"Arquivo salvo: {output}")
 
-    # Aviso de qualidade: proporcao > 100% indica forca_trabalho inconsistente
-    offset_perc = len(meta_cols) + 6  # posicao de proporcao_horas_perc
-    acima_100 = sum(1 for r in all_rows if _to_float(r[offset_perc]) > 100.0)
-    if acima_100:
-        print(f"  ALERTA: {acima_100} entrega(s) com proporcao_horas_perc > 100% — verificar forca_trabalho no PETRVS.")
+    # Aviso de qualidade: entregas com total_horas_planejadas_entrega = 0
+    offset_horas = len(meta_cols) + 7  # posicao de total_horas_planejadas_entrega
+    zeros = sum(1 for r in all_rows if str(r[offset_horas]) in ("0", "0.0", "0.00"))
+    if zeros:
+        pct = round(zeros * 100.0 / len(all_rows), 1)
+        if pct > 10:
+            print(f"  ALERTA: {pct}% das entregas com total_horas_planejadas_entrega = 0 — verificar carga_horaria e forca_trabalho.")
+        else:
+            print(f"  Info: {zeros} entrega(s) com total_horas = 0 ({pct}%).")
 
     # Aviso de periodo em_andamento
     em_andamento = sum(1 for r in all_rows if str(r[4]) == "em_andamento")
     if em_andamento:
         print(f"  AVISO: {em_andamento} linha(s) de periodos em_andamento — resultados preliminares.")
-
-
-def _to_float(value: object) -> float:
-    try:
-        return float(str(value))
-    except (ValueError, TypeError):
-        return 0.0
 
 
 if __name__ == "__main__":

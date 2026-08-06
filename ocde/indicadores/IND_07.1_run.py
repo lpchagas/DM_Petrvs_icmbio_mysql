@@ -36,6 +36,7 @@ sys.path.insert(0, str(ROOT))
 
 from lib.csv_utils import indicator_csv_dir, write_pipe_csv
 from lib.denodo_config import connect, get_config
+from lib.estrutura_organizacional import insert_mesogrupo_column, load_mesogrupo_lookup
 from lib.monthly_runner import query_rows
 from lib.periodos import build_periods_pe, period_metadata
 
@@ -168,7 +169,12 @@ def main() -> None:
         print("Nenhum dado retornado. CSV nao gerado.")
         return
 
-    write_pipe_csv(output, all_cols or [], all_rows)
+    # mesogrupo so entra no CSV escrito — all_cols/all_rows seguem com as
+    # posicoes originais para nao quebrar os offsets fixos usados abaixo.
+    lookup = load_mesogrupo_lookup()
+    csv_cols, csv_rows = insert_mesogrupo_column(all_cols or [], all_rows, lookup)
+
+    write_pipe_csv(output, csv_cols, csv_rows)
     print(f"Arquivo salvo: {output}")
 
     # Aviso de qualidade: entregas com total_horas_planejadas_entrega = 0

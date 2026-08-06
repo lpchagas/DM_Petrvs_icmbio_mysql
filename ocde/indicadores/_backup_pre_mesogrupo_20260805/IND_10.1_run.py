@@ -1,25 +1,24 @@
-"""IND_11.1_run.py — I11: Percentual de Avaliações Excepcionais por Unidade.
+"""IND_10.1_run.py — I10: Percentual de Avaliações Inadequadas por Unidade.
 
 Instrumento: Plano de Trabalho (PT).
 Periodicidade: 2025 trimestral (T3–T4) | 2026+ mensal (M01–M12). Base: 01/07/2025.
 
-Correção de escala (12.06.2026): o SQL original usava sequencia=5 para identificar
-"Excepcional", mas sequencia=5 é "Não executado" no banco ICMBio. Resultado incorreto:
-~0,02% de Excepcionais (apenas 4–9 registros em 35.000+).
+Correção de escala (12.06.2026): o script original usava sequencia=2 para identificar
+"Inadequado", mas sequencia=2 é "Alto desempenho" no banco ICMBio. Resultado incorreto:
+82–86% das unidades classificadas em "Atencao critica" em todos os períodos.
 
 Mapeamento correto da escala ICMBio (confirmado 12.06.2026):
-  sequencia=1 → Excepcional     ← critério correto para I11
+  sequencia=1 → Excepcional
   sequencia=2 → Alto desempenho
   sequencia=3 → Adequado
-  sequencia=4 → Inadequado
+  sequencia=4 → Inadequado     ← critério correto para I10
   sequencia=5 → Não executado
 
-Resultado após correção: 9,23% de Excepcionais (1.922/20.812 em 2025).
-Perfil ICMBio confirmado: 9% Excepcional + 71% Alto desempenho + 20% Adequado + 0,2% Inadequado.
-BAV-AIUABA (6 avaliações, todas seq=2) e ACADEBIO (sem seq=1 em 2025) confirmados.
+Resultado após correção: 98,9% das unidades em "Baixa prevalencia".
+Alerta recorrente confirmado: PARNAEMAS (T1–T3/2025).
 
-Interpretação: perc_excepcional >= 40% deve ser cruzado com I12 para distinguir
-excelência genuína de leniência avaliativa (PT >> PE).
+Nota: o SQL não usa JSON_UNQUOTE(tan.nota) — função que não funciona no Denodo VQL
+via JDBC. A identificação de "Inadequado" é feita diretamente via tan.sequencia = 4.
 """
 from __future__ import annotations
 
@@ -32,11 +31,10 @@ sys.path.insert(0, str(ROOT))
 
 from lib.csv_utils import indicator_csv_dir, write_pipe_csv
 from lib.denodo_config import connect, get_config
-from lib.estrutura_organizacional import insert_mesogrupo_column, load_mesogrupo_lookup
 from lib.monthly_runner import query_rows
 from lib.periodos import build_periods_pt, period_metadata
 
-SQL_I11 = """
+SQL_I10 = """
 WITH parametros AS (
     SELECT
         CAST('{ini}' AS DATE) AS data_inicio,
@@ -67,12 +65,12 @@ proporcao_por_unidade AS (
         COALESCE(un.sigla, 'N.I.')                                   AS unidade_sigla,
         COALESCE(un.nome,  'N.I.')                                   AS unidade_nome,
         COUNT(avpt.id_avaliacao)                                     AS total_avaliacoes_pt,
-        SUM(CASE WHEN avpt.sequencia_nota = 1 THEN 1 ELSE 0 END)    AS qtd_excepcional,
+        SUM(CASE WHEN avpt.sequencia_nota = 4 THEN 1 ELSE 0 END)    AS qtd_inadequado,
         ROUND(
-            SUM(CASE WHEN avpt.sequencia_nota = 1 THEN 1 ELSE 0 END) * 100.0
+            SUM(CASE WHEN avpt.sequencia_nota = 4 THEN 1 ELSE 0 END) * 100.0
                 / NULLIF(COUNT(avpt.id_avaliacao), 0),
             2
-        )                                                            AS perc_excepcional
+        )                                                            AS perc_inadequado
     FROM avaliacoes_pt avpt
     LEFT JOIN petrvs_icmbio_unidades un ON un.id = avpt.unidade_id
     GROUP BY COALESCE(un.sigla, 'N.I.'), COALESCE(un.nome, 'N.I.')
@@ -81,16 +79,16 @@ SELECT
     unidade_sigla,
     unidade_nome,
     total_avaliacoes_pt,
-    qtd_excepcional,
-    perc_excepcional,
+    qtd_inadequado,
+    perc_inadequado,
     CASE
-        WHEN perc_excepcional >= 40 THEN 'Reconhecimento elevado'
-        WHEN perc_excepcional >= 20 THEN 'Desempenho diferenciado'
-        WHEN perc_excepcional >=  5 THEN 'Destaque pontual'
-        ELSE 'Escala subutilizada'
-    END AS nivel_reconhecimento
+        WHEN perc_inadequado >= 30 THEN 'Atencao critica'
+        WHEN perc_inadequado >= 15 THEN 'Atencao moderada'
+        WHEN perc_inadequado >=  5 THEN 'Observacao'
+        ELSE 'Baixa prevalencia'
+    END AS nivel_alerta
 FROM proporcao_por_unidade
-ORDER BY perc_excepcional DESC, unidade_sigla
+ORDER BY perc_inadequado DESC, unidade_sigla
 """
 
 
@@ -106,7 +104,7 @@ def main() -> None:
     conn = connect(config)
     out_dir = indicator_csv_dir()
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
-    output = out_dir / f"IND_11.2_perc_excepcional_pt_{stamp}.csv"
+    output = out_dir / f"IND_10.2_perc_inadequado_pt_{stamp}.csv"
 
     periods = build_periods_pt()
     meta_cols = period_metadata()
@@ -115,8 +113,8 @@ def main() -> None:
 
     try:
         for label, kind, start, end, status in periods:
-            sql = SQL_I11.replace("{ini}", str(start)).replace("{fim}", str(end))
-            print(f"Executando I11 {label} ({start} a {end})...")
+            sql = SQL_I10.replace("{ini}", str(start)).replace("{fim}", str(end))
+            print(f"Executando I10 {label} ({start} a {end})...")
             try:
                 columns, rows = query_rows(conn, sql)
             except Exception as exc:
@@ -135,39 +133,26 @@ def main() -> None:
         print("Nenhum dado retornado. CSV nao gerado.")
         return
 
-    # mesogrupo so entra no CSV escrito — all_cols/all_rows seguem com as
-    # posicoes originais para nao quebrar os offsets fixos usados abaixo.
-    lookup = load_mesogrupo_lookup()
-    csv_cols, csv_rows = insert_mesogrupo_column(all_cols or [], all_rows, lookup)
-
-    write_pipe_csv(output, csv_cols, csv_rows)
+    write_pipe_csv(output, all_cols or [], all_rows)
     print(f"Arquivo salvo: {output}")
 
-    # Colunas apos meta_cols (6): sigla(0) nome(1) total_av(2) qtd_exc(3) perc_exc(4) nivel(5)
+    # Colunas apos meta_cols (6): sigla(0) nome(1) total_av(2) qtd_inadequado(3) perc_inadequado(4) nivel_alerta(5)
     n = len(meta_cols)
     offset_total = n + 2   # total_avaliacoes_pt
-    offset_perc  = n + 4   # perc_excepcional
-    offset_nivel = n + 5   # nivel_reconhecimento
+    offset_perc  = n + 4   # perc_inadequado
 
     encerrados = [r for r in all_rows if r[4] == "encerrado"]
 
-    # Alerta de possivel leniencia avaliativa (perc >= 40% requer cruzamento com I12)
-    leniencia = [r for r in encerrados if _to_float(r[offset_perc]) >= 40]
-    if leniencia:
-        unids = set(r[n] for r in leniencia)
-        print(f"  AVISO: {len(unids)} unidade(s) com perc_excepcional >= 40% em periodos encerrados"
-              f" — cruzar com I12 para distinguir excelencia genuina de leniencia avaliativa.")
-
-    # Escala subutilizada: nota maxima praticamente ausente
-    subutilizadas = [r for r in encerrados if r[offset_nivel] == "Escala subutilizada"]
-    if subutilizadas:
-        unids = set(r[n] for r in subutilizadas)
-        print(f"  NOTA: {len(unids)} unidade(s) com 'Escala subutilizada' — nota Excepcional quase ausente.")
+    # Unidades em "Atencao critica" (>= 30% inadequado) em periodos encerrados
+    criticos = [r for r in encerrados if _to_float(r[offset_perc]) >= 30]
+    if criticos:
+        unids = set(r[n] for r in criticos)
+        print(f"  AVISO: {len(unids)} unidade(s) com perc_inadequado >= 30% em periodos encerrados — requer acompanhamento.")
 
     # Unidades com < 5 avaliacoes (resultado fragil)
     low_count = sum(1 for r in encerrados if int(r[offset_total] or 0) < 5)
     if low_count:
-        print(f"  NOTA: {low_count} linha(s) com < 5 avaliacoes em periodos encerrados — percentuais frageis.")
+        print(f"  NOTA: {low_count} linha(s) com < 5 avaliacoes em periodos encerrados — percentuais estatisticamente frageis.")
 
     em_andamento = sum(1 for r in all_rows if r[4] == "em_andamento")
     if em_andamento:
