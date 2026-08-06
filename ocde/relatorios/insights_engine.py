@@ -16,6 +16,16 @@ def _sorted_periodos(df: pd.DataFrame) -> list[str]:
     return sorted(df["periodo"].unique(), key=periodo_sort_key)
 
 
+def _escopo(unidade: Optional[str]) -> str:
+    """Rótulo textual do escopo dos dados: 'nacional' ou a sigla da unidade.
+
+    Vários textos de insight/recomendação diziam "nacional" mesmo quando o
+    relatório já vinha filtrado por --unidade (os números estavam corretos,
+    só a palavra estava errada). Bug corrigido em 06.08.2026.
+    """
+    return f"em {unidade}" if unidade else "nacional"
+
+
 def _enc(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     if df is None:
         return pd.DataFrame()
@@ -57,42 +67,82 @@ def insights_eixo1(
 
     enc1 = _enc(df_v1)
     enc2 = _enc(df_v2)
-    ult1 = _ult(df_v1) if df_v1 is not None else ""
 
-    pct_col = "proporcao_perc" if "proporcao_perc" in (enc1.columns if not enc1.empty else []) else "percentual"
-    if not enc1.empty and ult1 and "modalidade" in enc1.columns and pct_col in enc1.columns:
-        ult_df = enc1[enc1["periodo"] == ult1]
-        pivot = ult_df.groupby("modalidade")[pct_col].mean().sort_values(ascending=False)
-        if not pivot.empty:
-            dom, dom_val = pivot.index[0], pivot.iloc[0]
-            ins.append(
-                f"Em **{ult1}**, a modalidade dominante é **{dom}** "
-                f"({dom_val:.1f}% dos servidores em média nacional)."
-            )
-            if len(pivot) > 1:
-                seg, seg_val = pivot.index[1], pivot.iloc[1]
-                ins.append(f"Segunda modalidade mais frequente: **{seg}** ({seg_val:.1f}%).")
+    # I01-v1 (proporcao_perc) é sempre um agregado nacional — sem unidade_sigla,
+    # não pode ser restringido a uma unidade. Quando `unidade` está definido,
+    # usar I01-v2 (já filtrado pela unidade) como fonte da distribuição por
+    # modalidade, para não misturar texto "nacional" com um relatório de
+    # unidade específica. Bug corrigido em 06.08.2026.
+    if unidade and not enc2.empty and "modalidade" in enc2.columns \
+            and "proporcao_na_unidade_perc" in enc2.columns:
+        pct_col2 = "proporcao_na_unidade_perc"
+        ult2 = _ult(enc2)
+        if ult2:
+            ult_df = enc2[enc2["periodo"] == ult2]
+            pivot = ult_df.groupby("modalidade")[pct_col2].mean().sort_values(ascending=False)
+            if not pivot.empty:
+                dom, dom_val = pivot.index[0], pivot.iloc[0]
+                ins.append(
+                    f"Em **{ult2}**, a modalidade dominante em **{unidade}** é **{dom}** "
+                    f"({dom_val:.1f}% dos servidores da unidade)."
+                )
+                if len(pivot) > 1:
+                    seg, seg_val = pivot.index[1], pivot.iloc[1]
+                    ins.append(f"Segunda modalidade mais frequente: **{seg}** ({seg_val:.1f}%).")
 
-        # Tendência entre primeiro e último período (ordenação cronológica)
-        pers = _sorted_periodos(enc1)
-        if len(pers) >= 2:
-            p_ini, p_fim = pers[0], pers[-1]
-            for mod in enc1["modalidade"].unique():
-                v_ini = enc1[(enc1["periodo"] == p_ini) & (enc1["modalidade"] == mod)][pct_col].mean()
-                v_fim = enc1[(enc1["periodo"] == p_fim) & (enc1["modalidade"] == mod)][pct_col].mean()
-                if pd.notna(v_ini) and pd.notna(v_fim):
-                    delta = v_fim - v_ini
-                    if abs(delta) > 5:
-                        sinal = "▲" if delta > 0 else "▼"
-                        ins.append(
-                            f"Tendência: {sinal} **{mod}** variou {delta:+.1f} pp "
-                            f"entre {p_ini} e {p_fim}."
-                        )
+            pers = _sorted_periodos(enc2)
+            if len(pers) >= 2:
+                p_ini, p_fim = pers[0], pers[-1]
+                for mod in enc2["modalidade"].unique():
+                    v_ini = enc2[(enc2["periodo"] == p_ini) & (enc2["modalidade"] == mod)][pct_col2].mean()
+                    v_fim = enc2[(enc2["periodo"] == p_fim) & (enc2["modalidade"] == mod)][pct_col2].mean()
+                    if pd.notna(v_ini) and pd.notna(v_fim):
+                        delta = v_fim - v_ini
+                        if abs(delta) > 5:
+                            sinal = "▲" if delta > 0 else "▼"
+                            ins.append(
+                                f"Tendência: {sinal} **{mod}** variou {delta:+.1f} pp "
+                                f"entre {p_ini} e {p_fim}."
+                            )
+        if "total_servidores" in enc2.columns and ult2:
+            tot = enc2[enc2["periodo"] == ult2]["total_servidores"].sum()
+            ins.append(f"Efetivo total de **{unidade}** em **{ult2}**: **{int(tot)}** servidores.")
+    else:
+        ult1 = _ult(df_v1) if df_v1 is not None else ""
+        pct_col = "proporcao_perc" if "proporcao_perc" in (enc1.columns if not enc1.empty else []) else "percentual"
+        if not enc1.empty and ult1 and "modalidade" in enc1.columns and pct_col in enc1.columns:
+            ult_df = enc1[enc1["periodo"] == ult1]
+            pivot = ult_df.groupby("modalidade")[pct_col].mean().sort_values(ascending=False)
+            if not pivot.empty:
+                dom, dom_val = pivot.index[0], pivot.iloc[0]
+                ins.append(
+                    f"Em **{ult1}**, a modalidade dominante é **{dom}** "
+                    f"({dom_val:.1f}% dos servidores em média nacional)."
+                )
+                if len(pivot) > 1:
+                    seg, seg_val = pivot.index[1], pivot.iloc[1]
+                    ins.append(f"Segunda modalidade mais frequente: **{seg}** ({seg_val:.1f}%).")
 
-    if not enc2.empty and ult1 and "unidade_sigla" in enc2.columns:
-        ult2_df = enc2[enc2["periodo"] == ult1] if "periodo" in enc2.columns else enc2
-        total_units = ult2_df["unidade_sigla"].nunique()
-        ins.append(f"Total de unidades com servidores registrados em **{ult1}**: **{total_units}**.")
+            # Tendência entre primeiro e último período (ordenação cronológica)
+            pers = _sorted_periodos(enc1)
+            if len(pers) >= 2:
+                p_ini, p_fim = pers[0], pers[-1]
+                for mod in enc1["modalidade"].unique():
+                    v_ini = enc1[(enc1["periodo"] == p_ini) & (enc1["modalidade"] == mod)][pct_col].mean()
+                    v_fim = enc1[(enc1["periodo"] == p_fim) & (enc1["modalidade"] == mod)][pct_col].mean()
+                    if pd.notna(v_ini) and pd.notna(v_fim):
+                        delta = v_fim - v_ini
+                        if abs(delta) > 5:
+                            sinal = "▲" if delta > 0 else "▼"
+                            ins.append(
+                                f"Tendência: {sinal} **{mod}** variou {delta:+.1f} pp "
+                                f"entre {p_ini} e {p_fim}."
+                            )
+
+        if not enc2.empty and ult1 and "unidade_sigla" in enc2.columns:
+            ult2_df = enc2[enc2["periodo"] == ult1] if "periodo" in enc2.columns else enc2
+            total_units = ult2_df["unidade_sigla"].nunique()
+            ins.append(f"Total de unidades com servidores registrados em **{ult1}**: **{total_units}**.")
 
     rec.append(
         "Monitorar a evolução por modalidade a cada ciclo, especialmente a proporção de trabalho "
@@ -187,7 +237,7 @@ def insights_eixo2(
     sem_principal = semaforo(serie02[-1].media if serie02 else None, "i02")
     if sem_principal == VERMELHO:
         rec.append(
-            "🔴 **Execução — Ação urgente:** Taxa de cumprimento nacional abaixo de 60%. "
+            f"🔴 **Execução — Ação urgente:** Taxa de cumprimento {_escopo(unidade)} abaixo de 60%. "
             "Acionar imediatamente gestores das unidades críticas para diagnóstico e revisão de metas "
             "excessivamente ambiciosas ou identificação de bloqueios operacionais."
         )
@@ -334,7 +384,7 @@ def insights_eixo4(
         nota_ref = min(5, max(1, round(ult9.media)))
         desc = escala.get(nota_ref, "")
         ins.append(
-            f"**I09** — Média nacional de avaliações de PT em **{ult9.periodo}**: "
+            f"**I09** — Média {_escopo(unidade)} de avaliações de PT em **{ult9.periodo}**: "
             f"**{ult9.media:.2f}** ({desc}) — {sem9}."
         )
         d9 = _delta_str(ult9.delta_pct)
@@ -439,6 +489,7 @@ def insights_cruzados(
     df06: Optional[pd.DataFrame],
     serie09: list[MetricasPeriodo],
     serie10: list[MetricasPeriodo],
+    unidade: Optional[str] = None,
 ) -> list[str]:
     """Gera insights que cruzam múltiplos indicadores."""
     ins: list[str] = []
@@ -455,7 +506,7 @@ def insights_cruzados(
             alta_conc = solo[solo["pct_categoria"] > 50]["unidade_sigla"].unique()
             if len(alta_conc) > 0:
                 ins.append(
-                    f"🔴 **Risco combinado (I02 × I06):** Execução nacional abaixo de 70% "
+                    f"🔴 **Risco combinado (I02 × I06):** Execução {_escopo(unidade)} abaixo de 70% "
                     f"E alta concentração de responsabilidades — {len(alta_conc)} unidade(s) "
                     f"acumulam baixo desempenho e dependência de servidor único. Prioridade máxima."
                 )
@@ -477,7 +528,7 @@ def insights_cruzados(
             ins.append(
                 f"Correlação possível I05 × I02: alta carga de entregas por servidor "
                 f"(mediana {med_entregas:.1f}) pode estar contribuindo para a execução "
-                f"nacional abaixo de 75% — avaliar se os planos de trabalho são realistas."
+                f"{_escopo(unidade)} abaixo de 75% — avaliar se os planos de trabalho são realistas."
             )
 
     return ins

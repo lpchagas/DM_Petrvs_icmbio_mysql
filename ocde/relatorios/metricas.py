@@ -6,6 +6,8 @@ from typing import Optional
 
 import pandas as pd
 
+from ocde.relatorios.loader import periodo_sort_key
+
 
 @dataclass
 class MetricasPeriodo:
@@ -21,12 +23,20 @@ class MetricasPeriodo:
 
 
 def calcular_serie(df: pd.DataFrame, col: str) -> list[MetricasPeriodo]:
-    """Série temporal de métricas por período (ordem cronológica)."""
+    """Série temporal de métricas por período (ordem cronológica).
+
+    Usa `loader.periodo_sort_key` (ano, mês) — não `sorted()` puro. Rótulos
+    de período (T3-2025, M01-2026, Q2-2026) não ordenam cronologicamente
+    como strings: "M01-2026" < "T3-2025" alfabeticamente, mas T3-2025
+    (jul/2025) é muito anterior a M01-2026 (jan/2026). O bug antigo
+    invertia a linha do tempo real e distorcia os `delta_pct` calculados
+    abaixo. Bug corrigido em 06.08.2026.
+    """
     if df is None or df.empty or col not in df.columns or "periodo" not in df.columns:
         return []
     resultados: list[MetricasPeriodo] = []
     media_ant: Optional[float] = None
-    for per in sorted(df["periodo"].unique()):
+    for per in sorted(df["periodo"].unique(), key=periodo_sort_key):
         sub = df[df["periodo"] == per][col].dropna()
         if sub.empty:
             continue

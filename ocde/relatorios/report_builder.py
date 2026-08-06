@@ -18,7 +18,7 @@ def divisor() -> str:
 
 
 def cabecalho(mes_label: str, unidade: Optional[str], titulo: str) -> str:
-    escopo = f"Unidade: **{unidade}**" if unidade else "Escopo: **Nacional (todas as unidades)**"
+    escopo = f"Unidade: {unidade}" if unidade else "Escopo: Nacional (todas as unidades)"
     return (
         f"# {titulo}\n\n"
         f"**Referência:** {mes_label}  \n"
