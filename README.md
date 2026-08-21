@@ -8,6 +8,18 @@ Desenvolvido pela Coordenação de Governança (CGOV/ICMBio) no âmbito do pilot
 
 ---
 
+## 📌 Últimas atualizações
+
+| Data | O que mudou | Onde |
+| --- | --- | --- |
+| 21.08.2026 | Documentação de como o **status** dos artefatos PGD (PE/PT) é obtido no PETRVS — status nativo do sistema vs. `periodo_status` calculado — com matriz técnica por indicador (I01–I12) e uma versão em linguagem não técnica para analistas de negócio. Corrigida uma generalização incorreta sobre a escala de notas do Eixo 4 (só I09 e I12 invertem a nota; I10 e I11 testam categoria diretamente). | [docs/07.1-estrutura-banco-dados.md §12](docs/07.1-estrutura-banco-dados.md) · [docs/07.2-status_artefatos_pgd_icmbio.md](docs/07.2-status_artefatos_pgd_icmbio.md) |
+| 05.08.2026 | Nova coluna **`mesogrupo`** (agrupador organizacional intermediário, ex. "Presidência", "DIPLAN") nos 12 CSVs de indicadores, cruzando a estrutura oficial do ICMBio com o cadastro do PETRVS. Corrigido um bug em 8 scripts onde a nova coluna deslocava os avisos de qualidade pós-CSV. | `lib/estrutura_organizacional.py` |
+| 24.07.2026 | Criados os 12 guias de execução via Jupyter Notebook (Opção B) — um por indicador, com a query e a tabela de períodos vigente, sem credenciais. | [ocde/indicadores/guia-jupyter/](ocde/indicadores/guia-jupyter/) |
+
+> Histórico completo de fases e decisões fica em `PROJECT.md` — arquivo de uso interno da equipe, não versionado neste repositório público.
+
+---
+
 ## Para quem não programa: como ler este projeto
 
 Este repositório mistura três tipos de conteúdo. Se você é gestor ou analista de negócio, o que interessa está quase sempre na primeira coluna:
@@ -156,7 +168,8 @@ A tabela abaixo descreve **todas as pastas de primeiro nível** do repositório 
 | [03-acesso-direto-denodo-dbeaver.md](docs/03-acesso-direto-denodo-dbeaver.md) | Como conectar no Denodo usando o DBeaver |
 | [04-configuracao-dbeaver.md](docs/04-configuracao-dbeaver.md) | Configuração detalhada do driver e da conexão no DBeaver |
 | [05-contexto-ocde-pgd.md](docs/05-contexto-ocde-pgd.md) | Contexto do piloto OCDE/PGD, perfil do ICMBio, achados quantitativos gerais |
-| [07-estrutura-banco-dados.md](docs/07-estrutura-banco-dados.md) | Dicionário das tabelas e campos do banco PETRVS usados nos cálculos |
+| [07.1-estrutura-banco-dados.md](docs/07.1-estrutura-banco-dados.md) | Dicionário das tabelas e campos do banco PETRVS usados nos cálculos, incluindo a matriz técnica de como o status de cada indicador é inferido (Seção 12) |
+| [07.2-status_artefatos_pgd_icmbio.md](docs/07.2-status_artefatos_pgd_icmbio.md) | Versão em linguagem não técnica da Seção 12 acima — como o status de PE/PT é obtido, com glossário e explicação de código, para quem não programa |
 | [08-guia-rapido-gestores.md](docs/08-guia-rapido-gestores.md) | **Ponto de partida para quem não programa** — o que cada indicador significa e como interpretá-lo |
 | [09-protocolo-validacao-indicadores.md](docs/09-protocolo-validacao-indicadores.md) | Como cada indicador é validado (etapas A1 a A5) antes de virar dado oficial |
 | [10-jupyter-guia-iniciantes.md](docs/10-jupyter-guia-iniciantes.md) | Passo a passo para usar o Notebook Jupyter sem experiência prévia em Python |
